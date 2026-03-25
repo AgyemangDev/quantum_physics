@@ -4,23 +4,19 @@ import type EqType from "../Eq";
 import EqBox from "../Cards/EqBox";
 import SliderField from "../Slider/SliderField";
 import NormBar from "./NormBar";
-import { Dimension } from "../types";
 
 const Eq = dynamic(() => import("../Eq"), { ssr: false }) as typeof EqType;
 
-const DIMS: Dimension[] = ["1D", "3D"];
-
 export default function Sidebar({
-  x0, sigma, k0, dim, norm, loading, error,
-  setX0, setSigma, setK0, setDim,
+  x0, sigma, k0, norm, loading, error,
+  setX0, setSigma, setK0,
 }: {
   x0: number; sigma: number; k0: number;
-  dim: Dimension; norm: number | null;
+  norm: number | null;
   loading: boolean; error: string | null;
   setX0: (v: number) => void;
   setSigma: (v: number) => void;
   setK0: (v: number) => void;
-  setDim: (d: Dimension) => void;
 }) {
   return (
     <aside style={{ borderRight: "1px solid var(--border)", padding: "20px 16px", background: "var(--bg-deep)", overflowY: "auto" }}>
@@ -52,35 +48,6 @@ export default function Sidebar({
         explanation="Wider σ → spread in position, sharp in momentum. Narrower σ → localised, but momentum uncertain." />
       <SliderField label="Wave vector k₀" value={k0} min={-8} max={8} step={0.5} color="var(--violet)" onChange={setK0}
         explanation="Average momentum p = ħk₀. Positive moves right, negative moves left. Higher |k₀| = faster." />
-
-      {/* Dimension toggle — only affects the Re(ψ)/Im(ψ) chart */}
-      <div style={{ borderTop: "1px solid var(--border)", paddingTop: 14, marginTop: 4, marginBottom: 16 }}>
-        <div style={{ fontSize: 10, color: "var(--text-muted)", letterSpacing: "0.1em", textTransform: "uppercase" as const, marginBottom: 4 }}>
-          Re(ψ) view
-        </div>
-        <div style={{ fontSize: 10, color: "var(--text-muted)", marginBottom: 10, lineHeight: 1.5 }}>
-          Applies only to the oscillation chart (chart 3)
-        </div>
-        <div style={{ display: "flex", gap: 6 }}>
-          {DIMS.map(d => (
-            <button key={d} onClick={() => setDim(d)} style={{
-              flex: 1, padding: "7px 0",
-              fontFamily: "var(--font-mono)", fontSize: 12, fontWeight: 700,
-              letterSpacing: "0.05em", cursor: "pointer", borderRadius: 5,
-              border: `1px solid ${dim === d ? "var(--violet)" : "var(--border)"}`,
-              background: dim === d ? "rgba(139,92,246,0.12)" : "transparent",
-              color: dim === d ? "var(--violet)" : "var(--text-muted)",
-              transition: "all 0.18s",
-            }}>
-              {d}
-            </button>
-          ))}
-        </div>
-        <div style={{ marginTop: 8, fontSize: 11, color: "var(--text-muted)", lineHeight: 1.5 }}>
-          {dim === "1D" && "Standard line chart — Re(ψ) and Im(ψ) along x."}
-          {dim === "3D" && "Wireframe surface — Re(ψ(x,y)) as seen in physics textbooks."}
-        </div>
-      </div>
 
       <div style={{ borderTop: "1px solid var(--border)", paddingTop: 14 }}>
         {norm !== null

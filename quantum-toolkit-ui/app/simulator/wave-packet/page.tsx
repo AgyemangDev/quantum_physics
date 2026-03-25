@@ -7,7 +7,7 @@ import Navbar from "../../components/Navbars/Navbar";
 import Sidebar from "@/app/components/Navbars/Sidebar";
 import MetricCard from "@/app/components/Cards/MetricCard";
 import { ProbChart, EnvelopeChart, ReImChart, MomentumChart } from "@/app/components/Cards/DimensionalChart";
-import { WavePacketResponse, Dimension, buildChartData } from "../../components/types";
+import { WavePacketResponse, buildChartData } from "../../components/types";
 
 const Eq = dynamic(() => import("../../components/Eq"), { ssr: false }) as typeof EqType;
 
@@ -17,7 +17,6 @@ export default function WavePacketPage() {
   const [x0,    setX0]    = useState(0);
   const [sigma, setSigma] = useState(1.0);
   const [k0,    setK0]    = useState(3.0);
-  const [dim,   setDim]   = useState<Dimension>("1D");
 
   const [data,    setData]    = useState<WavePacketResponse | null>(null);
   const [loading, setLoading] = useState(false);
@@ -62,10 +61,10 @@ export default function WavePacketPage() {
       <div style={{ display: "grid", gridTemplateColumns: "260px 1fr", minHeight: "calc(100vh - 52px)" }}>
 
         <Sidebar
-          x0={x0} sigma={sigma} k0={k0} dim={dim}
+          x0={x0} sigma={sigma} k0={k0}
           norm={data?.norm ?? null}
           loading={loading} error={error}
-          setX0={setX0} setSigma={setSigma} setK0={setK0} setDim={setDim}
+          setX0={setX0} setSigma={setSigma} setK0={setK0}
         />
 
         <main style={{ padding: "20px", display: "flex", flexDirection: "column", gap: 14, overflowY: "auto" }}>
@@ -102,13 +101,13 @@ export default function WavePacketPage() {
             </div>
           </div>
 
-          {/* 2×2 chart grid — all 4 respond to dim selector */}
-<div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-  <ProbChart     data={probData}     x0={x0} sigma={sigma} />
-  <EnvelopeChart data={envelopeData} x0={x0} sigma={sigma} />
-  <ReImChart     data={reImData}     x0={x0} sigma={sigma} k0={k0} dim={dim} />
-  <MomentumChart data={momData}      k0={k0} sigma={sigma} />
-</div>
+          {/* 2×2 chart grid */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+            <ProbChart     data={probData}     x0={x0} sigma={sigma} />
+            <EnvelopeChart data={envelopeData} x0={x0} sigma={sigma} />
+            <ReImChart     data={reImData}     x0={x0} sigma={sigma} k0={k0} />
+            <MomentumChart data={momData}      k0={k0} sigma={sigma} />
+          </div>
         </main>
       </div>
     </div>

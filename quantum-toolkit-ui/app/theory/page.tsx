@@ -1,105 +1,12 @@
 "use client";
 import Navbar from "../components/Navbars/Navbar";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
+import {TOPICS} from "../assets/data/topic"
 
-const TOPICS = [
-  {
-    id: "schrodinger",
-    title: "Schrödinger Equation",
-    tag: "TDSE",
-    color: "var(--cyan)",
-    equations: [
-      "iħ ∂ψ/∂t = Ĥψ",
-      "Ĥ = -ħ²/2m · ∂²/∂x² + V(x)",
-    ],
-    body: `The time-dependent Schrödinger equation governs how a quantum state ψ(x,t) evolves over time. The Hamiltonian Ĥ is the total energy operator — kinetic plus potential.
-
-In our simulator, we discretize this equation using the Crank-Nicolson method, which preserves unitarity (∫|ψ|²dx = 1) at every time step.`,
-    code: `# Crank-Nicolson step
-A = I + (i·dt/2ħ)·H
-B = I - (i·dt/2ħ)·H
-ψⁿ⁺¹ = A⁻¹ · B · ψⁿ`,
-  },
-  {
-    id: "tise",
-    title: "Stationary States",
-    tag: "TISE",
-    color: "var(--violet)",
-    equations: [
-      "Ĥψₙ = Eₙψₙ",
-      "Eₙ = n²π²ħ²/2mL²  (infinite well)",
-    ],
-    body: `When a particle is in a stationary state (eigenstate), its probability density |ψ|² does not change with time. These are solutions to the time-independent Schrödinger equation.
-
-We find them numerically by discretizing the Hamiltonian into a tridiagonal matrix and solving the eigenvalue problem using scipy.linalg.eigh().`,
-    code: `# Build Hamiltonian matrix (FDM)
-t = ħ² / (2m·dx²)
-H[i,i]   =  2t + V[i]
-H[i,i±1] = -t
-
-# Solve
-E, ψ = scipy.linalg.eigh(H)`,
-  },
-  {
-    id: "uncertainty",
-    title: "Uncertainty Principle",
-    tag: "HEISENBERG",
-    color: "var(--green)",
-    equations: [
-      "Δx · Δp ≥ ħ/2",
-      "Δx · Δk ≥ 1/2  (ħ=1 units)",
-    ],
-    body: `A Gaussian wave packet achieves the minimum uncertainty product Δx·Δk = ½. As the packet evolves in time, it spreads in position space — Δx grows — which corresponds to its momentum distribution sharpening.
-
-Watch this live in the simulator: the momentum plot narrows as the position spread widens.`,
-    code: `# Verify for Gaussian
-psi = gaussian_wavepacket(x, x0, k0, sigma)
-
-dx_val = sigma          # position width
-dk_val = 1/(2*sigma)   # momentum width
-
-assert dx_val * dk_val >= 0.5  # ✓`,
-  },
-  {
-    id: "tunneling",
-    title: "Quantum Tunneling",
-    tag: "SCATTERING",
-    color: "var(--amber)",
-    equations: [
-      "T = |t|²  (transmission coeff.)",
-      "R = |r|²  (reflection coeff.)",
-      "T + R = 1  (always)",
-    ],
-    body: `A classical particle cannot pass through a barrier if its energy E < V₀. Quantum mechanically, the wave function decays exponentially inside the barrier but remains non-zero — tunneling occurs.
-
-The transmission coefficient T increases when the particle energy k₀²/2 approaches V₀, or when the barrier is narrower. Try it in the simulator.`,
-    code: `# Transmission after collision
-right_prob = sum(|ψ|²[x>0])
-total_prob = sum(|ψ|²)
-T = right_prob / total_prob
-R = 1 - T`,
-  },
-  {
-    id: "wavepacket",
-    title: "Wave Packets",
-    tag: "SUPERPOSITION",
-    color: "var(--violet)",
-    equations: [
-      "ψ(x,0) = A·exp(-(x-x₀)²/4σ²)·exp(ik₀x)",
-      "⟨x⟩ = x₀,   ⟨k⟩ = k₀",
-    ],
-    body: `A Gaussian wave packet is a superposition of plane waves — a localized particle with a definite mean momentum ħk₀. The width σ sets the trade-off between position and momentum certainty.
-
-In free space, the packet's center moves at group velocity vg = ħk₀/m while the envelope spreads as σ(t) = σ√(1 + (ħt/2mσ²)²).`,
-    code: `def gaussian_wavepacket(x, x0, k0, sigma):
-    env  = exp(-(x-x0)**2 / (4*sigma**2))
-    phase = exp(1j * k0 * x)
-    psi  = env * phase
-    return psi / norm(psi)`,
-  },
-];
 
 export default function TheoryPage() {
+  const router = useRouter();
   const [active, setActive] = useState("schrodinger");
   const topic = TOPICS.find(t => t.id === active)!;
 
@@ -162,14 +69,21 @@ export default function TheoryPage() {
               <div style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--green)" }}/>
               <span style={{ fontSize: 10, color: "var(--text-muted)", marginLeft: 8 }}>python</span>
             </div>
-            <pre style={{
-              padding: "16px 20px", margin: 0, fontSize: 12,
-              fontFamily: "var(--font-mono)", lineHeight: 1.7,
-              color: "var(--text-primary)", background: "var(--bg-surface)",
-              overflowX: "auto" as const,
-            }}>
-              <code>{topic.code}</code>
-            </pre>
+<pre
+  style={{
+    padding: "20px",
+    margin: 0,
+    fontSize: 13,
+    fontFamily: "STIX Two Math, serif",
+    lineHeight: 1.8,
+    color: "var(--cyan)",
+    background: "radial-gradient(circle at top, #0a0f1f, #05070d)",
+    overflowX: "auto",
+    letterSpacing: "0.03em",
+  }}
+>
+  <code>{topic.code}</code>
+</pre>
           </div>
 
           {/* Link to simulator */}
@@ -177,9 +91,13 @@ export default function TheoryPage() {
             <span style={{ fontSize: 12, color: "var(--text-secondary)" }}>
               See this in action — run the live simulator
             </span>
-            <a href="/simulator" className="btn btn-primary" style={{ textDecoration: "none", fontSize: 11 }}>
-              Open simulator →
-            </a>
+<button
+  onClick={() => router.push(topic.route)}
+  className="btn btn-primary"
+  style={{ fontSize: 11 }}
+>
+  Open simulator →
+</button>
           </div>
         </main>
       </div>

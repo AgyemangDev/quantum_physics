@@ -3,6 +3,7 @@ import Link from "next/link";
 const links = [
   { href: "/",                      label: "Overview"    },
   { href: "/simulator/wave-packet", label: "Wave Packet" },
+  { href: "/simulator/time-evolution",label: "Time Evolution"},
   { href: "/simulator/tunneling",   label: "Tunneling"   },
   { href: "/simulator/bound-states",label: "Bound States"},
   { href: "/theory",                label: "Theory"      },
