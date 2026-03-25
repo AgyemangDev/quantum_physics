@@ -1,355 +1,331 @@
 """
 operators.py
 ------------
-Quantum mechanical operators for 1D systems.
+Quantum mechanical operators in matrix form (finite difference method).
 
-Implements the kinetic energy operator, potential energy operator,
-and the full Hamiltonian using the Finite Difference Method (FDM).
+All operators act on a 1D uniform spatial grid of N points.
+Uses second-order central finite differences for spatial derivatives.
 
-The Hamiltonian Ĥ = T̂ + V̂ is represented as a sparse matrix:
-    - T̂ (kinetic energy) : tridiagonal matrix from FDM second derivative
-    - V̂ (potential energy): diagonal matrix from V(x) values
+Available operators
+-------------------
+- kinetic_matrix         : T = -ℏ²/2m · d²/dx²  (dense)
+- kinetic_matrix_sparse  : T sparse (CSR) — recommended for large grids
+- potential_matrix       : V = diag(V(x))
+- potential_matrix_sparse: V sparse (CSR)
+- hamiltonian            : H = T + V  (dense)
+- hamiltonian_sparse     : H = T + V  (sparse CSR) — recommended for TDSE
+- momentum_matrix        : p = -iℏ d/dx  (central difference)
+- position_matrix        : x̂ = diag(x)
+- apply                  : apply operator to wave function
 
-The resulting matrix eigenvalue problem Ĥψ = Eψ gives:
-    - eigenvalues  → energy levels E₁, E₂, E₃, ...
-    - eigenvectors → stationary states ψ₁, ψ₂, ψ₃, ...
-
-All operators use natural units (ℏ = 1, m = 1) unless specified.
-
-FDM second derivative (central difference, O(Δx²) accuracy):
-    d²ψ/dx² ≈ (ψᵢ₋₁ - 2ψᵢ + ψᵢ₊₁) / Δx²
+Units: natural units (ℏ = 1, m = 1) unless otherwise specified.
 """
 
 import numpy as np
 import scipy.sparse as sp
-import scipy.sparse.linalg as spla
 
 
 # ---------------------------------------------------------------------------
-# Kinetic energy operator
+# Kinetic energy operator  T = -ℏ²/2m · d²/dx²
 # ---------------------------------------------------------------------------
 
-def kinetic_energy_operator(x: np.ndarray, hbar: float = 1.0,
-                             mass: float = 1.0) -> sp.dia_matrix:
+def kinetic_matrix(x: np.ndarray, hbar: float = 1.0, mass: float = 1.0) -> np.ndarray:
     """
-    Build the kinetic energy operator T̂ using the Finite Difference Method.
+    Dense kinetic energy matrix using second-order finite differences.
 
-    T̂ = -ℏ²/(2m) · d²/dx²
+    The second derivative d²ψ/dx² is approximated as:
+        (ψ_{i+1} - 2ψ_i + ψ_{i-1}) / Δx²
 
-    The second derivative is approximated by the central difference formula:
-        d²ψ/dx² ≈ (ψᵢ₋₁ - 2ψᵢ + ψᵢ₊₁) / Δx²
-
-    This produces a symmetric tridiagonal matrix:
-        diagonal     : -2 · (-ℏ²/2mΔx²) = ℏ²/mΔx²
-        off-diagonals:  1 · (-ℏ²/2mΔx²)
+    So the kinetic energy operator becomes a tridiagonal matrix:
+        T_ii     =  ℏ²/(m·Δx²)
+        T_{i,i±1} = -ℏ²/(2m·Δx²)
 
     Parameters
     ----------
-    x    : np.ndarray — uniform spatial grid
+    x    : np.ndarray — uniform spatial grid (N points)
     hbar : float      — reduced Planck constant (default: 1, natural units)
     mass : float      — particle mass (default: 1, natural units)
 
     Returns
     -------
-    T : scipy.sparse matrix (dia_matrix, real float64)
-        Shape: (N, N) where N = len(x)
+    T : np.ndarray, shape (N, N) — real symmetric tridiagonal matrix
 
-    Notes
-    -----
-    Sparse format is used for memory efficiency: storing only 3 diagonals
-    instead of N² elements. For N=1000 this saves ~99.8% memory.
+    Note
+    ----
+    For large grids (N > 500) or TDSE use, prefer kinetic_matrix_sparse().
     """
     N  = len(x)
     dx = x[1] - x[0]
+    coeff = hbar ** 2 / (2.0 * mass * dx ** 2)
 
-    # Prefactor: -ℏ²/(2m·Δx²)
-    prefactor = -(hbar ** 2) / (2 * mass * dx ** 2)
+    diag = 2.0 * coeff * np.ones(N)
+    off  = -coeff * np.ones(N - 1)
 
-    # Main diagonal: -2 × prefactor (positive, since prefactor is negative)
-    main_diag  = -2 * prefactor * np.ones(N)
-
-    # Off-diagonals: +1 × prefactor (negative)
-    off_diag   = prefactor * np.ones(N - 1)
-
-    # Build sparse tridiagonal matrix
-    T = sp.diags(
-        diagonals=[off_diag, main_diag, off_diag],
-        offsets=[-1, 0, 1],
-        shape=(N, N),
-        format="csr",
-    )
-    return T
+    return np.diag(diag) + np.diag(off, 1) + np.diag(off, -1)
 
 
-# ---------------------------------------------------------------------------
-# Potential energy operator
-# ---------------------------------------------------------------------------
-
-def potential_energy_operator(V: np.ndarray) -> sp.dia_matrix:
+def kinetic_matrix_sparse(x: np.ndarray, hbar: float = 1.0, mass: float = 1.0) -> sp.csr_matrix:
     """
-    Build the potential energy operator V̂ as a diagonal matrix.
+    Sparse CSR kinetic energy matrix — recommended for TDSE and large grids.
 
-    V̂ψ(x) = V(x) · ψ(x)
-
-    In the position representation, V̂ is simply a diagonal matrix
-    with V(xᵢ) on the diagonal. No approximation is needed here —
-    the potential is evaluated exactly at each grid point.
-
-    Parameters
-    ----------
-    V : np.ndarray — potential energy array V(x), shape (N,)
-
-    Returns
-    -------
-    V_op : scipy.sparse diagonal matrix (csr_matrix)
-           Shape: (N, N)
-    """
-    return sp.diags(V, offsets=0, format="csr")
-
-
-# ---------------------------------------------------------------------------
-# Full Hamiltonian
-# ---------------------------------------------------------------------------
-
-def hamiltonian(x: np.ndarray, V: np.ndarray, hbar: float = 1.0,
-                mass: float = 1.0) -> sp.csr_matrix:
-    """
-    Build the full Hamiltonian operator Ĥ = T̂ + V̂.
-
-    Ĥψ = Eψ  (time-independent Schrödinger equation)
-
-    This is the central object of quantum mechanics. Solving its
-    eigenvalue problem gives all observable energy levels and
-    the corresponding stationary states of the system.
+    Same mathematical content as kinetic_matrix() but stored efficiently
+    as a sparse matrix. Enables fast matrix-vector products in the
+    Crank-Nicolson solver without allocating an N×N dense array.
 
     Parameters
     ----------
     x    : np.ndarray — uniform spatial grid
-    V    : np.ndarray — potential energy V(x), same shape as x
-    hbar : float      — reduced Planck constant (default: 1)
-    mass : float      — particle mass (default: 1)
+    hbar : float
+    mass : float
 
     Returns
     -------
-    H : scipy.sparse.csr_matrix — Hamiltonian matrix, shape (N, N)
-        Symmetric real matrix (since V is real and T is symmetric)
-
-    Example
-    -------
-    >>> x = np.linspace(-10, 10, 512)
-    >>> V = infinite_square_well(x)
-    >>> H = hamiltonian(x, V)
+    T : scipy.sparse.csr_matrix, shape (N, N)
     """
-    T = kinetic_energy_operator(x, hbar=hbar, mass=mass)
-    V_op = potential_energy_operator(V)
-    return T + V_op
+    N  = len(x)
+    dx = x[1] - x[0]
+    coeff = hbar ** 2 / (2.0 * mass * dx ** 2)
+
+    diag = 2.0 * coeff * np.ones(N)
+    off  = -coeff * np.ones(N - 1)
+
+    return sp.diags([off, diag, off], [-1, 0, 1], format='csr')
 
 
 # ---------------------------------------------------------------------------
-# Eigenvalue solver (TISE)
+# Potential energy operator  V = diag(V(x))
 # ---------------------------------------------------------------------------
 
-def solve_tise(x: np.ndarray, V: np.ndarray, num_states: int = 10,
-               hbar: float = 1.0, mass: float = 1.0) -> tuple:
+def potential_matrix(V: np.ndarray) -> np.ndarray:
     """
-    Solve the Time-Independent Schrödinger Equation (TISE).
+    Dense diagonal matrix for the potential energy operator V̂.
 
-    Ĥψₙ = Eₙψₙ
-
-    Finds the lowest `num_states` energy eigenvalues and eigenvectors
-    using the ARPACK sparse eigensolver (scipy.sparse.linalg.eigsh).
-
-    This is orders of magnitude faster than full diagonalization for
-    large matrices, since we only need the lowest few eigenvalues.
+    In position representation, V̂ is diagonal:
+        V_ij = V(xᵢ) · δ_ij
 
     Parameters
     ----------
-    x          : np.ndarray — uniform spatial grid
-    V          : np.ndarray — potential energy array
-    num_states : int        — number of eigenstates to compute (default: 10)
-    hbar       : float      — reduced Planck constant (default: 1)
-    mass       : float      — particle mass (default: 1)
+    V : np.ndarray, shape (N,) — potential energy evaluated on the spatial grid
 
     Returns
     -------
-    energies   : np.ndarray, shape (num_states,)
-                 Energy eigenvalues E₁ ≤ E₂ ≤ ... ≤ Eₙ (sorted ascending)
+    V_mat : np.ndarray, shape (N, N) — diagonal matrix
+    """
+    return np.diag(V.astype(float))
 
-    eigenstates: np.ndarray, shape (N, num_states)
-                 Normalized eigenvectors. Column k is ψₖ(x).
-                 Each eigenstate satisfies ∫|ψₖ|²dx ≈ 1.
 
-    Notes
-    -----
-    - Uses 'which="SM"' to find the Smallest Magnitude eigenvalues,
-      which correspond to the lowest energy bound states.
-    - Eigenstates are normalized using the trapezoidal rule.
-    - The sign of each eigenstate is fixed so the first lobe is positive
-      (convention: makes comparison between runs consistent).
+def potential_matrix_sparse(V: np.ndarray) -> sp.csr_matrix:
+    """
+    Sparse diagonal matrix for V̂ — recommended for TDSE.
 
-    Example
+    Parameters
+    ----------
+    V : np.ndarray, shape (N,)
+
+    Returns
     -------
-    >>> x = np.linspace(0, 10, 512)
-    >>> V = infinite_square_well(x, x_left=0, x_right=10)
-    >>> energies, states = solve_tise(x, V, num_states=5)
-    >>> print(energies)  # Should be ≈ [0.49, 1.97, 4.44, 7.90, 12.34] for L=10
+    V_mat : scipy.sparse.csr_matrix, shape (N, N)
     """
-    H = hamiltonian(x, V, hbar=hbar, mass=mass)
-
-    # Clamp num_states to valid range
-    N = len(x)
-    num_states = min(num_states, N - 2)
-
-    # Solve sparse eigenvalue problem — find lowest num_states eigenvalues
-    energies, eigenstates = spla.eigsh(H, k=num_states, which="SM")
-
-    # Sort by energy (ascending)
-    idx = np.argsort(energies)
-    energies   = energies[idx]
-    eigenstates = eigenstates[:, idx]
-
-    # Normalize each eigenstate: ∫|ψ|²dx = 1
-    dx = x[1] - x[0]
-    for i in range(num_states):
-        norm = np.sqrt(np.trapezoid(np.abs(eigenstates[:, i]) ** 2, x))
-        if norm > 1e-15:
-            eigenstates[:, i] /= norm
-        # Fix sign convention: first significant lobe is positive
-        first_lobe = eigenstates[:, i][np.abs(eigenstates[:, i]) > 0.01 * np.max(np.abs(eigenstates[:, i]))]
-        if len(first_lobe) > 0 and first_lobe[0] < 0:
-            eigenstates[:, i] *= -1
-
-    return energies, eigenstates
+    return sp.diags(V.astype(float), format='csr')
 
 
 # ---------------------------------------------------------------------------
-# Momentum operator
+# Hamiltonian  H = T + V
 # ---------------------------------------------------------------------------
 
-def momentum_operator(x: np.ndarray, hbar: float = 1.0) -> sp.csr_matrix:
+def hamiltonian(x: np.ndarray, V: np.ndarray,
+                hbar: float = 1.0, mass: float = 1.0) -> np.ndarray:
     """
-    Build the momentum operator p̂ using central finite differences.
+    Full Hamiltonian matrix H = T + V  (dense).
 
-    p̂ = -iℏ · d/dx
+    H is the central operator of quantum mechanics:
+        Ĥ = -ℏ²/2m · d²/dx² + V(x)
 
-    Approximated with central differences (antisymmetric, imaginary):
-        dψ/dx ≈ (ψᵢ₊₁ - ψᵢ₋₁) / (2Δx)
-
-    Note: p̂ is anti-Hermitian in this discretization — it is used
-    mainly for computing expectation values <p>, not for building H.
+    Used for:
+    - TISE: Ĥψₙ = Eₙψₙ  (eigenvalue problem → energy levels)
+    - TDSE: iℏ∂ψ/∂t = Ĥψ (time evolution)
 
     Parameters
     ----------
     x    : np.ndarray — uniform spatial grid
-    hbar : float      — reduced Planck constant (default: 1)
+    V    : np.ndarray — potential energy V(x) on the grid
+    hbar : float
+    mass : float
 
     Returns
     -------
-    p_op : scipy.sparse.csr_matrix — momentum matrix, shape (N, N)
-           Complex matrix (imaginary entries)
+    H : np.ndarray, shape (N, N) — real symmetric matrix
+
+    Note
+    ----
+    For TDSE or large grids, use hamiltonian_sparse() instead.
+    """
+    return kinetic_matrix(x, hbar, mass) + potential_matrix(V)
+
+
+def hamiltonian_sparse(x: np.ndarray, V: np.ndarray,
+                        hbar: float = 1.0, mass: float = 1.0) -> sp.csr_matrix:
+    """
+    Full Hamiltonian matrix H = T + V  (sparse CSR).
+
+    Recommended for:
+    - Crank-Nicolson TDSE solver (sparse linear system solve)
+    - Large grids (N > 500)
+    - Memory-efficient computation
+
+    Parameters
+    ----------
+    x    : np.ndarray — uniform spatial grid
+    V    : np.ndarray — potential energy V(x)
+    hbar : float
+    mass : float
+
+    Returns
+    -------
+    H : scipy.sparse.csr_matrix, shape (N, N)
+    """
+    return kinetic_matrix_sparse(x, hbar, mass) + potential_matrix_sparse(V)
+
+
+# ---------------------------------------------------------------------------
+# Momentum operator  p̂ = -iℏ d/dx
+# ---------------------------------------------------------------------------
+
+def momentum_matrix(x: np.ndarray, hbar: float = 1.0) -> np.ndarray:
+    """
+    Momentum operator matrix using central finite differences.
+
+    The first derivative dψ/dx is approximated as:
+        (ψ_{i+1} - ψ_{i-1}) / (2Δx)
+
+    So the momentum operator is an anti-symmetric matrix:
+        p_{i,i+1} = -iℏ / (2Δx)
+        p_{i,i-1} = +iℏ / (2Δx)
+
+    This operator is Hermitian: p† = p
+
+    Parameters
+    ----------
+    x    : np.ndarray — uniform spatial grid
+    hbar : float
+
+    Returns
+    -------
+    p : np.ndarray (complex128), shape (N, N) — anti-symmetric complex matrix
     """
     N  = len(x)
     dx = x[1] - x[0]
+    coeff = -1j * hbar / (2.0 * dx)
 
-    # Central difference: off-diagonals ±1/(2Δx), multiplied by -iℏ
-    prefactor = -1j * hbar / (2 * dx)
+    off_plus  =  coeff * np.ones(N - 1)
+    off_minus = -coeff * np.ones(N - 1)
 
-    upper = prefactor * np.ones(N - 1)
-    lower = -prefactor * np.ones(N - 1)
-
-    p_op = sp.diags(
-        diagonals=[lower, upper],
-        offsets=[-1, 1],
-        shape=(N, N),
-        format="csr",
-    )
-    return p_op
+    return np.diag(off_plus, 1) + np.diag(off_minus, -1)
 
 
 # ---------------------------------------------------------------------------
-# Expectation values from operators
+# Position operator  x̂ = diag(x)
 # ---------------------------------------------------------------------------
 
-def expectation_value(psi: np.ndarray, operator: sp.csr_matrix,
-                       x: np.ndarray) -> complex:
+def position_matrix(x: np.ndarray) -> np.ndarray:
     """
-    Compute the expectation value <ψ|Ô|ψ> = ∫ψ*(x) Ô ψ(x) dx.
+    Position operator matrix x̂ = diag(x).
+
+    In position representation, x̂ is simply diagonal.
+    Used for computing expectation values <x> = <ψ|x̂|ψ>.
 
     Parameters
     ----------
-    psi      : np.ndarray (complex) — normalized wave function
-    operator : scipy.sparse matrix  — quantum operator matrix
-    x        : np.ndarray           — spatial grid
+    x : np.ndarray — spatial grid
 
     Returns
     -------
-    <O> : complex (imaginary part should be ≈ 0 for Hermitian operators)
+    X : np.ndarray, shape (N, N) — diagonal matrix
     """
-    Opsi = operator.dot(psi)
-    integrand = np.conj(psi) * Opsi
-    return np.trapezoid(integrand, x)
+    return np.diag(x.astype(float))
 
 
-def energy_expectation(psi: np.ndarray, x: np.ndarray, V: np.ndarray,
-                        hbar: float = 1.0, mass: float = 1.0) -> float:
+# ---------------------------------------------------------------------------
+# Apply operator to wave function
+# ---------------------------------------------------------------------------
+
+def apply(operator: np.ndarray, psi: np.ndarray) -> np.ndarray:
     """
-    Compute the energy expectation value <E> = <ψ|Ĥ|ψ>.
+    Apply an operator matrix to a wave function vector.
 
-    Useful for validating that an eigenstate satisfies <E> ≈ Eₙ,
-    and for tracking energy during time evolution.
+    Computes O|ψ⟩ = operator @ psi
+
+    Works with both dense numpy arrays and sparse scipy matrices.
 
     Parameters
     ----------
-    psi  : np.ndarray (complex) — normalized wave function
-    x    : np.ndarray           — spatial grid
-    V    : np.ndarray           — potential energy array
-    hbar : float                — reduced Planck constant
-    mass : float                — particle mass
+    operator : np.ndarray or scipy.sparse matrix, shape (N, N)
+    psi      : np.ndarray (complex), shape (N,)
 
     Returns
     -------
-    <E> : float
+    result : np.ndarray (complex), shape (N,)
     """
-    H = hamiltonian(x, V, hbar=hbar, mass=mass)
-    return float(np.real(expectation_value(psi, H, x)))
+    return operator @ psi
 
 
 # ---------------------------------------------------------------------------
 # Diagnostics
 # ---------------------------------------------------------------------------
 
-def hamiltonian_info(x: np.ndarray, V: np.ndarray) -> dict:
+def commutator(A: np.ndarray, B: np.ndarray) -> np.ndarray:
     """
-    Return diagnostic information about the Hamiltonian matrix.
+    Compute the commutator [A, B] = AB - BA.
 
-    Useful for debugging, validation, and API responses.
+    In quantum mechanics, non-commuting operators correspond to
+    incompatible observables (e.g. [x̂, p̂] = iℏ — Heisenberg uncertainty).
 
     Parameters
     ----------
-    x : np.ndarray — spatial grid
-    V : np.ndarray — potential energy array
+    A : np.ndarray, shape (N, N)
+    B : np.ndarray, shape (N, N)
 
     Returns
     -------
-    dict with keys:
-        N          : int   — matrix dimension
-        dx         : float — grid spacing
-        is_symmetric: bool — should always be True
-        nnz        : int   — number of non-zero elements
-        sparsity   : float — fraction of non-zero elements
+    [A, B] : np.ndarray (complex), shape (N, N)
     """
-    H = hamiltonian(x, V)
-    N = len(x)
-    nnz = H.nnz
+    return A @ B - B @ A
 
-    # Check symmetry: |H - Hᵀ| should be zero
-    diff = H - H.T
-    is_symmetric = np.allclose(diff.data, 0, atol=1e-10) if diff.nnz > 0 else True
 
-    return {
-        "N":            N,
-        "dx":           float(x[1] - x[0]),
-        "is_symmetric": is_symmetric,
-        "nnz":          nnz,
-        "sparsity":     round(nnz / (N * N), 6),
-    }
+def is_hermitian(operator: np.ndarray, tol: float = 1e-10) -> bool:
+    """
+    Check if an operator matrix is Hermitian (self-adjoint): O† = O.
+
+    Physical observables must be Hermitian to guarantee real eigenvalues.
+    Useful for validating that H, x̂, p̂ are correctly constructed.
+
+    Parameters
+    ----------
+    operator : np.ndarray — square matrix
+    tol      : float      — numerical tolerance
+
+    Returns
+    -------
+    bool : True if ||O - O†|| < tol
+    """
+    diff = np.max(np.abs(operator - operator.conj().T))
+    return bool(diff < tol)
+
+
+def expectation_value(operator: np.ndarray, psi: np.ndarray, x: np.ndarray) -> float:
+    """
+    Compute the expectation value <ψ|Ô|ψ> = ∫ ψ*(x) (Ôψ)(x) dx.
+
+    Parameters
+    ----------
+    operator : np.ndarray or sparse matrix, shape (N, N)
+    psi      : np.ndarray (complex), shape (N,)
+    x        : np.ndarray — spatial grid (for integration)
+
+    Returns
+    -------
+    ev : float — real part of the expectation value
+    """
+    O_psi = operator @ psi
+    integrand = np.conj(psi) * O_psi
+    return float(np.real(np.trapezoid(integrand, x)))
