@@ -58,7 +58,7 @@ export default function WavePacketPage() {
   return (
     <div style={{ minHeight: "100vh", background: "var(--bg-void)" }}>
       <Navbar />
-      <div style={{ display: "grid", gridTemplateColumns: "260px 1fr", minHeight: "calc(100vh - 52px)" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "320px 1fr", minHeight: "calc(100vh - 52px)" }}>
 
         <Sidebar
           x0={x0} sigma={sigma} k0={k0}
@@ -101,13 +101,14 @@ export default function WavePacketPage() {
             </div>
           </div>
 
-          {/* 2×2 chart grid */}
+          {/* 2×2 chart grid — all 1D */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
             <ProbChart     data={probData}     x0={x0} sigma={sigma} />
             <EnvelopeChart data={envelopeData} x0={x0} sigma={sigma} />
-            <ReImChart     data={reImData}     x0={x0} sigma={sigma} k0={k0} />
+            <ReImChart     data={reImData}     x0={x0} k0={k0} />
             <MomentumChart data={momData}      k0={k0} sigma={sigma} />
           </div>
+
         </main>
       </div>
     </div>
