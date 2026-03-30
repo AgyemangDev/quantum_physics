@@ -56,7 +56,7 @@ export default function WavePacketPage() {
   const hpOk = hp >= 0.499;
 
   return (
-    <div style={{ minHeight: "100vh", background: "var(--bg-void)" }}>
+    <div style={{ minHeight: "100vh", background: "var(--bg-void)", color: "white" }}>
       <Navbar />
       <div style={{ display: "grid", gridTemplateColumns: "320px 1fr", minHeight: "calc(100vh - 52px)" }}>
 
@@ -84,14 +84,14 @@ export default function WavePacketPage() {
               sub="uncertainty in k"
             />
             <div className="panel" style={{ padding: "12px 16px", flex: 2, minWidth: 180 }}>
-              <div style={{ fontSize: 10, color: "var(--text-muted)", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 4 }}>
+              <div style={{ fontSize: 10, color: "white", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 4 }}>
                 σ_x · σ_k — Heisenberg
               </div>
               <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
                 <span style={{ fontSize: 20, fontWeight: 700, fontFamily: "var(--font-mono)", color: hpOk ? "var(--green)" : "var(--red-accent)" }}>
                   {data ? hp.toFixed(5) : "—"}
                 </span>
-                <span style={{ fontSize: 11, color: "var(--text-muted)" }}>
+                <span style={{ fontSize: 11, color: "white" }}>
                   {hpOk ? "≥ 0.5 ✓ minimum uncertainty" : "< 0.5 ✗"}
                 </span>
               </div>

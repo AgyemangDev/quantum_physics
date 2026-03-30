@@ -4,7 +4,6 @@ const links = [
   { href: "/",                      label: "Overview"    },
   { href: "/simulator/wave-packet", label: "Wave Packet" },
   { href: "/simulator/time-evolution",label: "Time Evolution"},
-  { href: "/simulator/tunneling",   label: "Tunneling"   },
   { href: "/simulator/bound-states",label: "Bound States"},
   { href: "/theory",                label: "Theory"      },
 ];
@@ -17,6 +16,7 @@ export default function Navbar() {
       borderBottom: "1px solid var(--border)",
       display: "flex", alignItems: "center",
       padding: "0 24px", height: "52px",
+      color: "white",
     }}>
       {/* Logo */}
       <Link href="/" style={{ textDecoration: "none", marginRight: "auto", display: "flex", alignItems: "center", gap: 10 }}>
@@ -28,8 +28,8 @@ export default function Navbar() {
         }}>
           <div style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--cyan)" }} />
         </div>
-        <span style={{ fontFamily: "var(--font-display)", fontWeight: 800, fontSize: 15, letterSpacing: "0.05em", color: "var(--text-primary)" }}>
-          QUANTUM<span style={{ color: "var(--cyan)" }}>_</span>TOOLKIT
+        <span style={{ fontFamily: "var(--font-display)", fontWeight: 800, fontSize: 15, letterSpacing: "0.05em", color: "white" }}>
+          QUANTUM<span style={{ color: "white" }}>_</span>TOOLKIT
         </span>
       </Link>
 
@@ -43,7 +43,7 @@ export default function Navbar() {
             fontSize: 11,
             letterSpacing: "0.1em",
             textTransform: "uppercase",
-            color: "var(--text-secondary)",
+            color: "white",
             fontFamily: "var(--font-mono)",
             border: "1px solid transparent",
             transition: "color 0.15s, border-color 0.15s",

@@ -19,7 +19,7 @@ export default function LineChart({
   color2 = "#a78bfa",
   width  = 420,
   height = 190,
-}: LineChartProps) {
+}: LineChartProps): JSX.Element {
   const ref = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -38,6 +38,7 @@ export default function LineChart({
     ctx.fillStyle = "rgba(6,8,16,0.55)";
     ctx.fillRect(0, 0, width, height);
 
+    // Declare pad, W, H, mapX, mapY BEFORE first use
     const pad = { t: 14, b: 24, l: 10, r: 10 };
     const W = width  - pad.l - pad.r;
     const H = height - pad.t - pad.b;
@@ -52,6 +53,30 @@ export default function LineChart({
 
     const mapX = (xi: number) => pad.l + ((xi - xMin) / xRange) * W;
     const mapY = (yi: number) => pad.t + H - ((yi - yMin) / yRange) * H;
+
+    // Y-axis label
+    ctx.save();
+    ctx.fillStyle = "rgba(148,163,184,0.35)";
+    ctx.font      = "8px monospace";
+    ctx.textAlign = "center";
+    ctx.translate(pad.l - 2, pad.t + H / 2);
+    ctx.rotate(-Math.PI / 2);
+    ctx.fillText("ψ", 0, 0);
+    ctx.restore();
+
+    // X-axis label
+    ctx.fillStyle = "rgba(148,163,184,0.35)";
+    ctx.font      = "8px monospace";
+    ctx.textAlign = "center";
+    ctx.fillText("x", pad.l + W / 2, height - 2);
+
+    // Y-axis tick values
+    ctx.fillStyle = "rgba(148,163,184,0.3)";
+    ctx.font      = "7px monospace";
+    ctx.textAlign = "right";
+    [yMin, (yMin + yMax) / 2, yMax].forEach(v => {
+      ctx.fillText(v.toFixed(2), pad.l - 2, mapY(v) + 3);
+    });
 
     // Grid lines (subtle)
     ctx.strokeStyle = "rgba(255,255,255,0.04)";
@@ -69,15 +94,21 @@ export default function LineChart({
     if (V && Vmax && Vmax > 0) {
       ctx.save();
       ctx.setLineDash([2, 4]);
-      ctx.strokeStyle = "rgba(251,191,36,0.4)";
-      ctx.lineWidth = 1;
+      ctx.strokeStyle = "rgba(251,191,36,0.6)";
+      ctx.lineWidth = 1.5;
       ctx.beginPath();
-      V.forEach((v, i) => {
-        const vn = (v / Vmax) * (H * 0.82);
-        const xp = pad.l + (i / (V.length - 1)) * W;
-        const yp = pad.t + H - vn;
-        i === 0 ? ctx.moveTo(xp, yp) : ctx.lineTo(xp, yp);
-      });
+
+      // Find the actual displayable max — cap at 2× the prob density max
+      // so the barrier is always visible regardless of how large V0 is
+      const VdisplayMax = Vmax; 
+      
+V.forEach((v, i) => {
+  const vClamped = Math.min(v, VdisplayMax);
+  const vn = VdisplayMax > 0 ? (vClamped / VdisplayMax) * (H * 0.7) : 0;
+  const xp = pad.l + (i / (V.length - 1)) * W;
+  const yp = pad.t + H - vn;  // always anchored to chart bottom
+  i === 0 ? ctx.moveTo(xp, yp) : ctx.lineTo(xp, yp);
+});
       ctx.stroke();
       ctx.restore();
     }
@@ -129,12 +160,6 @@ export default function LineChart({
       if (v < xMin || v > xMax) return;
       ctx.fillText(String(v), mapX(v), height - 5);
     });
-
-    // x label
-    ctx.fillStyle = "rgba(148,163,184,0.3)";
-    ctx.font      = "8px monospace";
-    ctx.textAlign = "right";
-    ctx.fillText("x", pad.l + W, height - 5);
   }, [x, y, y2, V, Vmax, color, color2, width, height]);
 
   return (

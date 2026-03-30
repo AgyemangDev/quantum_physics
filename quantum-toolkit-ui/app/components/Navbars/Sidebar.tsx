@@ -30,10 +30,10 @@ export default function Sidebar({
 
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
-        <span style={{ fontSize: 10, letterSpacing: "0.15em", color: "var(--text-muted)", textTransform: "uppercase" as const }}>
+        <span style={{ fontSize: 10, letterSpacing: "0.15em", color: "white", textTransform: "uppercase" as const }}>
           ◈ Wave Packet
         </span>
-        <span style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 10, color: "var(--text-muted)" }}>
+        <span style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 10, color: "white" }}>
           <span style={{
             width: 6, height: 6, borderRadius: "50%", display: "inline-block",
             background: loading ? "var(--amber)" : "var(--green)",
@@ -54,7 +54,7 @@ export default function Sidebar({
         boxSizing: "border-box" as const,
       }}>
         <div style={{
-          fontSize: 10, color: "var(--text-muted)",
+          fontSize: 10, color: "white",
           textTransform: "uppercase" as const,
           letterSpacing: "0.08em", marginBottom: 10,
         }}>
@@ -81,6 +81,7 @@ export default function Sidebar({
           borderTop: "1px solid var(--border)",
           display: "flex",
           flexDirection: "column" as const,
+          color: "white",
           gap: 4,
         }}>
           {[
@@ -91,11 +92,11 @@ export default function Sidebar({
             <div key={label} style={{ display: "flex", gap: 8, alignItems: "baseline" }}>
               <span style={{
                 fontSize: 10, fontFamily: "var(--font-mono)",
-                color: "var(--cyan)", minWidth: 100, flexShrink: 0,
+                color: "white", minWidth: 100, flexShrink: 0,
               }}>
                 {symbol}
               </span>
-              <span style={{ fontSize: 10, color: "var(--text-muted)", lineHeight: 1.4 }}>
+              <span style={{ fontSize: 10, color: "white", lineHeight: 1.4 }}>
                 {label}
               </span>
             </div>
@@ -124,7 +125,7 @@ export default function Sidebar({
       <div style={{ borderTop: "1px solid var(--border)", paddingTop: 14 }}>
         {norm !== null
           ? <NormBar norm={norm} />
-          : <div style={{ fontSize: 11, color: "var(--text-muted)" }}>Adjust a slider to compute</div>
+          : <div style={{ fontSize: 11, color: "white" }}>Adjust a slider to compute</div>
         }
       </div>
 

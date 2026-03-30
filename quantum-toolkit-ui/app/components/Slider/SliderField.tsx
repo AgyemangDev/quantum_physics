@@ -8,10 +8,10 @@ export default function SliderField({ label, value, min, max, step, color = "var
   return (
     <div style={{ marginBottom: 20 }}>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5 }}>
-        <span style={{ fontSize: 11, color: "var(--text-secondary)", letterSpacing: "0.08em", textTransform: "uppercase" as const }}>
+        <span style={{ fontSize: 11, color: "white", letterSpacing: "0.08em", textTransform: "uppercase" as const }}>
           {label}
         </span>
-        <span style={{ fontSize: 13, color, fontWeight: 700, fontFamily: "var(--font-mono)" }}>
+        <span style={{ fontSize: 13, color:'white', fontWeight: 700, fontFamily: "var(--font-mono)" }}>
           {value.toFixed(step < 0.1 ? 2 : 1)}
         </span>
       </div>
@@ -27,11 +27,11 @@ export default function SliderField({ label, value, min, max, step, color = "var
         />
       </div>
       <div style={{ display: "flex", justifyContent: "space-between", marginTop: 2 }}>
-        <span style={{ fontSize: 10, color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}>{min}</span>
-        <span style={{ fontSize: 10, color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}>{max}</span>
+        <span style={{ fontSize: 10, color: "white", fontFamily: "var(--font-mono)" }}>{min}</span>
+        <span style={{ fontSize: 10, color: "white", fontFamily: "var(--font-mono)" }}>{max}</span>
       </div>
       {explanation && (
-        <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 5, lineHeight: 1.5 }}>
+        <div style={{ fontSize: 11, color: "white", marginTop: 5, lineHeight: 1.5 }}>
           {explanation}
         </div>
       )}

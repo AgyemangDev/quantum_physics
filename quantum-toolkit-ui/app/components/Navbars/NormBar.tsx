@@ -11,7 +11,7 @@ export default function NormBar({ norm }: { norm: number }) {
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-        <span style={{ fontSize: 10, color: "var(--text-muted)", textTransform: "uppercase" as const, letterSpacing: "0.1em" }}>Norm</span>
+        <span style={{ fontSize: 10, color: "white", textTransform: "uppercase" as const, letterSpacing: "0.1em" }}>Norm</span>
         <span style={{ fontSize: 12, fontWeight: 700, color: ok ? "var(--green)" : "var(--red-accent)", fontFamily: "var(--font-mono)" }}>
           {norm.toFixed(6)}
         </span>

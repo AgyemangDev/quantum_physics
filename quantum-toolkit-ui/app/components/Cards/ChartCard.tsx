@@ -13,7 +13,7 @@ export default function ChartCard({ title, dot, eqBox, explanation, children }: 
       <div style={{ padding: "12px 14px", flex: 1 }}>
         {eqBox}
         {children}
-        <div style={{ marginTop: 8, fontSize: 11, color: "var(--text-muted)", lineHeight: 1.6, borderLeft: `2px solid ${dot}`, paddingLeft: 8 }}>
+        <div style={{ marginTop: 8, fontSize: 11, color: "white", lineHeight: 1.6, borderLeft: `2px solid ${dot}`, paddingLeft: 8 }}>
           {explanation}
         </div>
       </div>

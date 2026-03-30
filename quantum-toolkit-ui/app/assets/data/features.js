@@ -12,12 +12,6 @@ export const FEATURES = [
     color: "var(--violet)",
   },
   {
-    icon: "T+R",
-    title: "Tunneling Analysis",
-    desc: "Live transmission and reflection coefficients. T + R = 1 at every step, verified numerically.",
-    color: "var(--amber)",
-  },
-  {
     icon: "Δx·Δk",
     title: "Uncertainty Principle",
     desc: "Real-time σ_x and σ_k readout. The product σ_x · σ_k ≥ ½ is shown and checked always.",

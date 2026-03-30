@@ -1,5 +1,6 @@
 export type Potential = "free" | "barrier" | "step" | "harmonic";
 export type Speed = 0.1 | 0.5 | 1 | 2 | 5;
+export type TunnelingMode = "tunneling" | "wall";
 
 export interface EvolveRequest {
   x0: number;

@@ -40,7 +40,7 @@ export default function TeamCard({ name, role, description, linkedin, github, in
           }}>
             {role}
           </div>
-          <div style={{ marginTop: 16, fontSize: 10, color: "var(--text-muted)", letterSpacing: "0.08em" }}>
+          <div style={{ marginTop: 16, fontSize: 10, color: "white", letterSpacing: "0.08em" }}>
             hover to flip →
           </div>
         </div>

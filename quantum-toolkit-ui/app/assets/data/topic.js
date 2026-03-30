@@ -40,24 +40,6 @@ Solve:  Hψ = Eψ`
   },
 
   {
-    id: "tunneling",
-    title: "Quantum Tunneling",
-    tag: "SCATTERING",
-    route: "/simulator/tunneling",
-    color: "var(--amber)",
-    equations: [
-      "T = |t|²",
-      "R = |r|²",
-      "T + R = 1",
-    ],
-    body: `Quantum particles can penetrate barriers even when E < V₀.
-
-The wavefunction decays exponentially inside the barrier but never fully vanishes.`,
-    code: `T = ∑ |ψ(x>0)|² / ∑ |ψ(x)|²
-R = 1 - T`
-  },
-
-  {
     id: "wavepacket",
     title: "Wave Packets",
     tag: "SUPERPOSITION",

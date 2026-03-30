@@ -17,7 +17,7 @@ export default function TheoryPage() {
 
         {/* Sidebar */}
         <aside style={{ borderRight: "1px solid var(--border)", padding: "20px 12px", background: "var(--bg-deep)" }}>
-          <div style={{ fontSize: 10, letterSpacing: "0.15em", color: "var(--text-muted)", marginBottom: 16, textTransform: "uppercase" as const, padding: "0 4px" }}>
+          <div style={{ fontSize: 10, letterSpacing: "0.15em", color: "white", marginBottom: 16, textTransform: "uppercase" as const, padding: "0 4px" }}>
             ◈ Concepts
           </div>
           {TOPICS.map(t => (
@@ -67,7 +67,7 @@ export default function TheoryPage() {
               <div style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--red-accent)" }}/>
               <div style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--amber)" }}/>
               <div style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--green)" }}/>
-              <span style={{ fontSize: 10, color: "var(--text-muted)", marginLeft: 8 }}>python</span>
+              <span style={{ fontSize: 10, color: "white", marginLeft: 8 }}>python</span>
             </div>
 <pre
   style={{

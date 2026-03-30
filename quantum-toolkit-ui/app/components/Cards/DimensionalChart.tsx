@@ -29,8 +29,8 @@ export function ProbChart({ data, x0, sigma }: {
     >
       <ResponsiveContainer width="100%" height={170}>
         <LineChart data={data}>
-          <XAxis dataKey="x" stroke="var(--text-muted)" tick={{ fontSize: 9 }} />
-          <YAxis stroke="var(--text-muted)" tick={{ fontSize: 9 }} width={36} />
+          <XAxis dataKey="x" stroke="white" tick={{ fontSize: 9 }} />
+          <YAxis stroke="white" tick={{ fontSize: 9 }} width={36} />
           <Tooltip contentStyle={tooltipStyle} formatter={fmt} />
           <ReferenceLine x={x0} stroke="rgba(0,229,255,0.3)" strokeDasharray="3 3" />
           <Line type="monotone" dataKey="prob" stroke="var(--cyan)" dot={false} strokeWidth={2} name="|ψ|²" />
@@ -58,8 +58,8 @@ export function EnvelopeChart({ data, x0, sigma }: {
     >
       <ResponsiveContainer width="100%" height={170}>
         <LineChart data={data}>
-          <XAxis dataKey="x" stroke="var(--text-muted)" tick={{ fontSize: 9 }} />
-          <YAxis stroke="var(--text-muted)" tick={{ fontSize: 9 }} width={36} />
+          <XAxis dataKey="x" stroke="white" tick={{ fontSize: 9 }} />
+          <YAxis stroke="white" tick={{ fontSize: 9 }} width={36} />
           <Tooltip contentStyle={tooltipStyle} formatter={fmt} />
           <ReferenceLine x={x0} stroke="rgba(0,255,136,0.3)" strokeDasharray="3 3" />
           <Line type="monotone" dataKey="env" stroke="var(--green)" dot={false} strokeWidth={2} name="|ψ|" />
@@ -87,8 +87,8 @@ export function ReImChart({ data, x0, k0 }: {
     >
       <ResponsiveContainer width="100%" height={170}>
         <LineChart data={data}>
-          <XAxis dataKey="x" stroke="var(--text-muted)" tick={{ fontSize: 9 }} />
-          <YAxis stroke="var(--text-muted)" tick={{ fontSize: 9 }} width={36} />
+          <XAxis dataKey="x" stroke="white" tick={{ fontSize: 9 }} />
+          <YAxis stroke="white" tick={{ fontSize: 9 }} width={36} />
           <Tooltip contentStyle={tooltipStyle} formatter={fmt} />
           <ReferenceLine y={0} stroke="var(--border)" />
           <Legend wrapperStyle={{ fontSize: 10, fontFamily: "'Space Mono', monospace" }} />
@@ -118,9 +118,9 @@ export function MomentumChart({ data, k0, sigma }: {
     >
       <ResponsiveContainer width="100%" height={170}>
         <LineChart data={data}>
-          <XAxis dataKey="x" stroke="var(--text-muted)" tick={{ fontSize: 9 }}
-            label={{ value: "k", position: "insideBottomRight", offset: -4, fill: "var(--text-muted)", fontSize: 9 }} />
-          <YAxis stroke="var(--text-muted)" tick={{ fontSize: 9 }} width={36} />
+          <XAxis dataKey="x" stroke="white" tick={{ fontSize: 9 }}
+            label={{ value: "k", position: "insideBottomRight", offset: -4, fill: "white", fontSize: 9 }} />
+          <YAxis stroke="white" tick={{ fontSize: 9 }} width={36} />
           <Tooltip contentStyle={tooltipStyle} formatter={fmt} />
           <ReferenceLine x={k0} stroke="rgba(139,92,246,0.4)" strokeDasharray="3 3" />
           <Line type="monotone" dataKey="prob_k" stroke="var(--violet)" dot={false} strokeWidth={2} name="|ψ̃|²" />

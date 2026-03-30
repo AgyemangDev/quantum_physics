@@ -6,7 +6,7 @@ export default function HeroEquations() {
       {EQS.map(eq => (
         <div key={eq} style={{
           fontFamily: "var(--font-mono)", fontSize: 13,
-          color: "var(--text-muted)", letterSpacing: "0.06em",
+          color: "white", letterSpacing: "0.06em",
           padding: "6px 14px",
           border: "1px solid var(--border)",
           borderRadius: 4,

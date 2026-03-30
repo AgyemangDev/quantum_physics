@@ -10,8 +10,8 @@ import { TEAM } from "./assets/data/teams";
 
 const SIMULATORS = [
   { href: "/simulator/wave-packet",  label: "Wave Packet",  tag: "Ready",       color: "var(--green)"  },
-  { href: "/simulator/tunneling",    label: "Tunneling",    tag: "Coming Soon", color: "var(--amber)"  },
-  { href: "/simulator/bound-states", label: "Bound States", tag: "Coming Soon", color: "var(--text-muted)" },
+  { href: "/simulator/time-evolution",    label: "Time Evolution",    tag: "Ready", color: "var(--amber)"  },
+  { href: "/simulator/bound-states", label: "Bound States", tag: "Coming Soon", color: "white" },
 ];
 
 
@@ -63,7 +63,7 @@ export default function HomePage() {
 
       {/* ── Simulator modules ── */}
       <section style={{ padding: "56px 40px 0", maxWidth: 1100, margin: "0 auto" }}>
-        <div style={{ fontSize: 10, letterSpacing: "0.15em", color: "var(--text-muted)", textTransform: "uppercase" as const, marginBottom: 24 }}>
+        <div style={{ fontSize: 10, letterSpacing: "0.15em", color: "white", textTransform: "uppercase" as const, marginBottom: 24 }}>
           ◈ Simulator modules
         </div>
         <div style={{ display: "flex", gap: 12, flexWrap: "wrap" as const }}>
@@ -86,7 +86,7 @@ export default function HomePage() {
                   <div style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: 15, color: "var(--text-primary)", marginBottom: 4 }}>{label}</div>
                   <div style={{ fontSize: 10, color, letterSpacing: "0.1em", textTransform: "uppercase" as const }}>{tag}</div>
                 </div>
-                <span style={{ marginLeft: "auto", color: "var(--text-muted)", fontSize: 16 }}>→</span>
+                <span style={{ marginLeft: "auto", color: "white", fontSize: 16 }}>→</span>
               </div>
             </Link>
           ))}
@@ -95,7 +95,7 @@ export default function HomePage() {
 
       {/* ── Features ── */}
       <section style={{ padding: "56px 40px", maxWidth: 1100, margin: "0 auto" }}>
-        <div style={{ fontSize: 10, letterSpacing: "0.15em", color: "var(--text-muted)", textTransform: "uppercase" as const, marginBottom: 28, textAlign: "center" as const }}>
+        <div style={{ fontSize: 10, letterSpacing: "0.15em", color: "white", textTransform: "uppercase" as const, marginBottom: 28, textAlign: "center" as const }}>
           ◈ What is inside
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 14 }}>
@@ -125,19 +125,19 @@ export default function HomePage() {
 
       {/* ── Team ── */}
       <section style={{ borderTop: "1px solid var(--border)", padding: "64px 40px 80px", maxWidth: 1100, margin: "0 auto" }}>
-        <div style={{ fontSize: 10, letterSpacing: "0.15em", color: "var(--text-muted)", textTransform: "uppercase" as const, marginBottom: 8, textAlign: "center" as const }}>
+        <div style={{ fontSize: 10, letterSpacing: "0.15em", color: "white", textTransform: "uppercase" as const, marginBottom: 8, textAlign: "center" as const }}>
           ◈ Team
         </div>
         <div style={{ fontFamily: "var(--font-display)", fontWeight: 800, fontSize: 28, textAlign: "center" as const, marginBottom: 8 }}>
           Who built this
         </div>
-        <div style={{ fontSize: 13, color: "var(--text-muted)", textAlign: "center" as const, marginBottom: 48 }}>
+        <div style={{ fontSize: 13, color: "white", textAlign: "center" as const, marginBottom: 48 }}>
           Hover the cards to flip
         </div>
         <div style={{ display: "flex", gap: 24, justifyContent: "center", flexWrap: "wrap" as const }}>
           {TEAM.map(t => <TeamCard key={t.name} {...t} />)}
         </div>
-        <div style={{ textAlign: "center" as const, marginTop: 40, fontSize: 12, color: "var(--text-muted)", lineHeight: 1.8 }}>
+        <div style={{ textAlign: "center" as const, marginTop: 40, fontSize: 12, color: "white", lineHeight: 1.8 }}>
           Supervisors:{" "}
           <a href="https://www.linkedin.com/in/pierrecapiod/" target="_blank" rel="noopener noreferrer" style={linkStyle}>Pierre CAPIOD</a>
           {" &amp; "}

@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useRef, useCallback } from "react";
-import type { EvolveResponse, Potential, Speed } from "./types";
+import type { EvolveResponse, Potential, Speed, TunnelingMode } from "./types";
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
@@ -12,27 +12,37 @@ export function useEvolve() {
   const [error,   setError]   = useState<string | null>(null);
 
   const compute = useCallback(async (params: {
-    x0: number; sigma: number; k0: number;
-    potential: Potential; V0: number;
-    tEnd:number
-  }) => {
+  x0: number; sigma: number; k0: number;
+  potential: Potential; V0: number;
+  barrier_width: number;
+  amplitude: number;
+  tEnd: number;
+  tunnelingMode: TunnelingMode;   // ← add this
+}) => {
     setLoading(true);
     setError(null);
 
+    const halfW = params.barrier_width / 2;
+    const isWall = params.tunnelingMode === "wall";
     try {
       const res = await fetch(`${API}/evolve`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+    
         body: JSON.stringify({
-          ...params,
-          t_end: params.tEnd,
-          barrier_left:  -0.5,
-          barrier_right:  0.5,
-          dt:             0.005,
-          store_every:    10,
-          x_min:         -10,
-          x_max:          10,
-          N:              512,
+        x0:            params.x0,
+        sigma:         params.sigma * params.amplitude,  // amplitude scales sigma
+        k0:            params.k0,
+        potential:     params.potential,
+        V0:            isWall ? 29.5 : params.V0,
+        barrier_left:  isWall ? -0.2 : -halfW,
+        barrier_right: isWall ?  0.2 :  halfW,
+        t_end:         params.tEnd,
+        dt:            0.005,
+        store_every:   10,
+        x_min:        -10,
+        x_max:         10,
+        N:             512,
         }),
       });
 
