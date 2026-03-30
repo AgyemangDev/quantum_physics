@@ -136,6 +136,11 @@ def compute_evolution(req: EvolveRequest):
         x   = np.linspace(req.x_min, req.x_max, req.N)
         V   = build_potential(x, req.potential, req.V0,
                               req.barrier_left, req.barrier_right)
+        
+        ramp_width = max(1, int(0.05 * req.N))
+        ramp = np.linspace(0, 1e4, ramp_width)
+        V[:ramp_width]  = np.maximum(V[:ramp_width],  ramp[::-1])
+        V[-ramp_width:] = np.maximum(V[-ramp_width:], ramp)
         psi0 = gaussian_wave_packet(x, x0=req.x0, sigma=req.sigma, k0=req.k0)
 
         snapshots, times = evolve(

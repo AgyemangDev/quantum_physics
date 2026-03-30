@@ -39,7 +39,7 @@ class WavePacketResponse(BaseModel):
 # ---------------------------------------------------------------------------
 
 class EvolveRequest(BaseModel):
-    x0:    float = Field(default=0.0,  ge=-5.0, le=5.0,  description="Centre initial du paquet")
+    x0:    float = Field(default=0.0,  ge=-10.0, le=0.0,  description="Centre initial du paquet")
     sigma: float = Field(default=1.0,  ge=0.2,  le=3.0,  description="Largeur initiale")
     k0:    float = Field(default=3.0,  ge=-8.0, le=8.0,  description="Vecteur d'onde initial")
 
@@ -48,7 +48,7 @@ class EvolveRequest(BaseModel):
     barrier_left:  float = Field(default=-1.0, description="Bord gauche de la barrière")
     barrier_right: float = Field(default=1.0,  description="Bord droit de la barrière")
 
-    t_end:       float = Field(default=3.0,   ge=0.1,  le=20.0, description="Temps final")
+    t_end:       float = Field(default=40.0,   ge=0.1,  le=200.0, description="Temps final")
     dt:          float = Field(default=0.005, ge=0.001, le=0.05, description="Pas de temps")
     store_every: int   = Field(default=10,    ge=1,    le=50,   description="1 frame tous les n pas")
 
