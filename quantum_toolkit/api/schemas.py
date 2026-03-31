@@ -71,3 +71,33 @@ class EvolveResponse(BaseModel):
     n_frames: int
     dt:       float
     t_end:    float
+
+
+# ---------------------------------------------------------------------------
+# Infinite Well (TISE) — Request / Response
+# ---------------------------------------------------------------------------
+
+class InfiniteWellRequest(BaseModel):
+    x_left:   float = Field(default=-5.0,  ge=-9.0,  le=0.0,  description="Bord gauche du puits")
+    x_right:  float = Field(default=5.0,   ge=0.0,   le=9.0,  description="Bord droit du puits")
+    n_states: int   = Field(default=5,     ge=1,     le=10,   description="Nombre d'états propres")
+    x_min:    float = Field(default=-10.0, description="Borne gauche de la grille")
+    x_max:    float = Field(default=10.0,  description="Borne droite de la grille")
+    N:        int   = Field(default=512,   ge=128,   le=1024, description="Nombre de points")
+
+
+class EigenstateData(BaseModel):
+    n:      int
+    energy: float
+    real:   List[float]
+    prob:   List[float]
+
+
+class InfiniteWellResponse(BaseModel):
+    x:                  List[float]
+    V:                  List[float]
+    energies:           List[float]
+    analytical_energies: List[float]
+    eigenstates:        List[EigenstateData]
+    well_width:         float
+    n_states:           int
