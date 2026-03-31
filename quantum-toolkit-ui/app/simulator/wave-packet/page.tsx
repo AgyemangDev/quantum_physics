@@ -47,7 +47,7 @@ export default function WavePacketPage() {
     return () => clearTimeout(t);
   }, [x0, sigma, k0, compute]);
 
-  const probData     = data ? buildChartData(data.x, data.prob,                        undefined, ["prob"])   : [];
+  const probData = data ? buildChartData(data.x, data.prob, data.prob.map(v => Math.sqrt(v)), ["prob", "env"]) : [];
   const envelopeData = data ? buildChartData(data.x, data.prob.map(v => Math.sqrt(v)), undefined, ["env"])    : [];
   const reImData     = data ? buildChartData(data.x, data.real, data.imag,             ["re", "im"])          : [];
   const momData      = data ? buildChartData(data.k, data.prob_k,                      undefined, ["prob_k"]) : [];

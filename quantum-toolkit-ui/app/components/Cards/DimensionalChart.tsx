@@ -25,14 +25,16 @@ export function ProbChart({ data, x0, sigma }: {
           <Eq tex={String.raw`\rho(x)=|\psi(x)|^2`} />
         </EqBox>
       }
-      explanation={`Peak at x₀ = ${x0}. Width controlled by σ = ${sigma}. Area under the curve always equals 1 — the particle must be somewhere.`}
+      explanation={`Peak at x₀ = ${x0}. Width controlled by σ = ${sigma}. Area under the curve always equals 1 — the particle must be somewhere. The green envelope |ψ| shows the Gaussian amplitude before squaring.`}
     >
       <ResponsiveContainer width="100%" height={170}>
         <LineChart data={data}>
           <XAxis dataKey="x" stroke="white" tick={{ fontSize: 9 }} />
           <YAxis stroke="white" tick={{ fontSize: 9 }} width={36} />
           <Tooltip contentStyle={tooltipStyle} formatter={fmt} />
+          <Legend wrapperStyle={{ fontSize: 10, fontFamily: "'Space Mono', monospace" }} />
           <ReferenceLine x={x0} stroke="rgba(0,229,255,0.3)" strokeDasharray="3 3" />
+          <Line type="monotone" dataKey="env" stroke="var(--green)" dot={false} strokeWidth={1.5} strokeDasharray="4 2" name="|ψ|" />
           <Line type="monotone" dataKey="prob" stroke="var(--cyan)" dot={false} strokeWidth={2} name="|ψ|²" />
         </LineChart>
       </ResponsiveContainer>
