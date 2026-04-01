@@ -156,23 +156,7 @@ const handleCompute = useCallback(() => {
             >
               {data ? <LineChart x={x} y={real} y2={imag} color="#22d3ee" color2="#a78bfa" /> : EMPTY}
             </ChartPanel>
-
-            <ChartPanel
-              title="Potential  V(x)"
-              eq={<Eq tex={String.raw`V(x)`} />}
-              legend={[{ color: "#f59e0b", label: "static — does not change with time" }]}
-            >
-              {data ? <LineChart x={x} y={V} color="#f59e0b" /> : EMPTY}
-            </ChartPanel>
           </div>
-
-          {/* Equation reference */}
-          {data && (
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-              <EqPanel label="Time-dependent Schrödinger equation" tex={String.raw`i\hbar\frac{\partial\psi}{\partial t}=\!\left(-\frac{\hbar^2}{2m}\frac{\partial^2}{\partial x^2}+V(x)\right)\!\psi`} />
-              <EqPanel label="Crank–Nicolson scheme"               tex={String.raw`\left(I+\frac{i\Delta t}{2\hbar}H\right)\!\psi^{n+1}=\!\left(I-\frac{i\Delta t}{2\hbar}H\right)\!\psi^{n}`} />
-            </div>
-          )}
 
         </main>
       </div>
