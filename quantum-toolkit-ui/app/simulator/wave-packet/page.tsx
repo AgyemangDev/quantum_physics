@@ -47,9 +47,27 @@ export default function WavePacketPage() {
     return () => clearTimeout(t);
   }, [x0, sigma, k0, compute]);
 
-  const probData = data ? buildChartData(data.x, data.prob, data.prob.map(v => Math.sqrt(v)), ["prob", "env"]) : [];
+  const probData = data
+  ? buildChartData(data.x, data.prob, undefined, ["prob"])
+  : [];
   const envelopeData = data ? buildChartData(data.x, data.prob.map(v => Math.sqrt(v)), undefined, ["env"])    : [];
-  const reImData     = data ? buildChartData(data.x, data.real, data.imag,             ["re", "im"])          : [];
+  const reImData = data
+  ? (() => {
+      const step = Math.max(1, Math.floor(data.x.length / 256));
+      return data.x.reduce((acc: Record<string, number>[], _, i) => {
+        if (i % step !== 0) return acc;
+        const env = Math.sqrt(data.prob[i]);   // |ψ| = √(|ψ|²)
+        acc.push({
+          x:    parseFloat(data.x[i].toFixed(3)),
+          re:   parseFloat(data.real[i].toFixed(5)),
+          im:   parseFloat(data.imag[i].toFixed(5)),
+          env:  parseFloat(env.toFixed(5)),
+          envN: parseFloat((-env).toFixed(5)),  // negative mirror
+        });
+        return acc;
+      }, []);
+    })()
+  : [];
   const momData      = data ? buildChartData(data.k, data.prob_k,                      undefined, ["prob_k"]) : [];
 
   const hp   = data?.heisenberg_product ?? 0;
@@ -105,7 +123,7 @@ export default function WavePacketPage() {
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
             <ProbChart     data={probData}     x0={x0} sigma={sigma} />
             <EnvelopeChart data={envelopeData} x0={x0} sigma={sigma} />
-            <ReImChart     data={reImData}     x0={x0} k0={k0} />
+            <ReImChart data={reImData} x0={x0} k0={k0} sigma={sigma} />
             <MomentumChart data={momData}      k0={k0} sigma={sigma} />
           </div>
 

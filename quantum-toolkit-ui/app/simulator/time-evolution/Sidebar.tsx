@@ -14,7 +14,7 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
       fontSize: 9,
       letterSpacing: "0.18em",
       textTransform: "uppercase",
-      color: "rgba(148,163,184,0.35)",
+      color: "rgba(255,255,255,0.85)",
       margin: "18px 0 10px",
       fontFamily: "monospace",
     }}>
@@ -39,7 +39,7 @@ function EqDisplay({ label, tex }: { label: string; tex: string }) {
       <div style={{
         padding: "6px 12px",
         fontSize: 9,
-        color: "rgba(148,163,184,0.45)",
+        color: "rgba(255,255,255,0.85)",
         fontFamily: "monospace",
         borderBottom: "1px solid rgba(255,255,255,0.05)",
       }}>
@@ -63,7 +63,7 @@ function SliderField({
   return (
     <div style={{ marginBottom: 18 }}>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-        <span style={{ fontSize: 10, color: "rgba(148,163,184,0.6)", fontFamily: "monospace", letterSpacing: "0.08em" }}>
+        <span style={{ fontSize: 10, color: "rgba(255,255,255,0.85)", fontFamily: "monospace", letterSpacing: "0.08em" }}>
           {label}
         </span>
         <span style={{ fontSize: 13, color, fontFamily: "'JetBrains Mono', monospace", fontWeight: 700 }}>
@@ -134,7 +134,7 @@ useEffect(() => {
 
       {/* Header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-        <span style={{ fontSize: 10, letterSpacing: "0.16em", color: "rgba(148,163,184,0.45)", fontFamily: "monospace" }}>
+        <span style={{ fontSize: 10, letterSpacing: "0.16em", color: "rgba(255,255,255,0.85)", fontFamily: "monospace" }}>
           ◈ Quantum Controls
         </span>
         <span style={{ fontSize: 9, fontFamily: "monospace", color: loading ? "#f59e0b" : "#22c55e" }}>
@@ -150,33 +150,33 @@ useEffect(() => {
       <SectionLabel>Initial conditions</SectionLabel>
 
       {/* Potential selector */}
-<SectionLabel>Potential type</SectionLabel>
-<div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, marginBottom: 18 }}>
-  {([
-    { key: "free",     label: "Free",     desc: "spreading" },
-    { key: "barrier",  label: "Barrier",  desc: "tunneling" },
-    { key: "step",     label: "Step",     desc: "reflect / transmit" },
-    { key: "harmonic", label: "Harmonic", desc: "oscillator" },
-  ] as { key: Potential; label: string; desc: string }[]).map(({ key, label, desc }) => (
-    <button
-      key={key}
-      onClick={() => setPotential(key)}
-      style={{
-        padding: "8px 6px",
-        fontFamily: "monospace", fontSize: 11, fontWeight: 700,
-        cursor: "pointer", borderRadius: 6,
-        border: `1px solid ${potential === key ? "#22d3ee" : "rgba(255,255,255,0.08)"}`,
-        background: potential === key ? "rgba(34,211,238,0.1)" : "transparent",
-        color: potential === key ? "#22d3ee" : "rgba(100,116,139,0.6)",
-        transition: "all 0.18s",
-        display: "flex", flexDirection: "column", alignItems: "center", gap: 2,
-      }}
-    >
-      <span>{label}</span>
-      <span style={{ fontSize: 9, opacity: 0.6, fontWeight: 400 }}>{desc}</span>
-    </button>
-  ))}
-</div>
+      <SectionLabel>Potential type</SectionLabel>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, marginBottom: 18 }}>
+        {([
+          { key: "free",     label: "Free",     desc: "spreading" },
+          { key: "barrier",  label: "Barrier",  desc: "tunneling" },
+          { key: "step",     label: "Step",     desc: "reflect / transmit" },
+          { key: "harmonic", label: "Harmonic", desc: "oscillator" },
+        ] as { key: Potential; label: string; desc: string }[]).map(({ key, label, desc }) => (
+          <button
+            key={key}
+            onClick={() => setPotential(key)}
+            style={{
+              padding: "8px 6px",
+              fontFamily: "monospace", fontSize: 11, fontWeight: 700,
+              cursor: "pointer", borderRadius: 6,
+              border: `1px solid ${potential === key ? "#22d3ee" : "rgba(255,255,255,0.08)"}`,
+              background: potential === key ? "rgba(34,211,238,0.1)" : "transparent",
+              color: potential === key ? "#22d3ee" : "rgba(255,255,255,0.75)",
+              transition: "all 0.18s",
+              display: "flex", flexDirection: "column", alignItems: "center", gap: 2,
+            }}
+          >
+            <span>{label}</span>
+            <span style={{ fontSize: 9, opacity: 0.75, fontWeight: 400 }}>{desc}</span>
+          </button>
+        ))}
+      </div>
 
       <SliderField label="x₀ (position)"  value={x0}           min={-8}  max={0}   step={0.5}            onChange={setX0} />
       <SliderField label="σ (spread)"     value={sigma}         min={0.2} max={2}   step={0.1} color="#22c55e" onChange={setSigma} />
@@ -184,51 +184,42 @@ useEffect(() => {
       <SliderField label="V₀ (potential)" value={V0}            min={0}   max={30}  step={0.5} color="#f59e0b" onChange={setV0} />
       <SliderField label="Barrier width"  value={barrierWidth}  min={0.2} max={4.0} step={0.1} color="#f59e0b" onChange={setBarrierWidth} />
       <SliderField label="Wave amplitude" value={amplitude}     min={0.5} max={3.0} step={0.1} color="#fb923c" onChange={setAmplitude} />
-      <SliderField label="t_max (time)"   value={tEnd}          min={1}   max={100} step={1}   color="#38bdf8" onChange={setTEnd} />
+      <SliderField label="t_max (time)"   value={tEnd}          min={1}   max={20} step={1}   color="#38bdf8" onChange={setTEnd} />
 
       {/* Tunneling mode */}
-
       {potential === "barrier" && (
-      <div style={{ marginBottom: 18 }}>
-        <div style={{ fontSize: 9, letterSpacing: "0.18em", textTransform: "uppercase" as const, color: "rgba(148,163,184,0.35)", marginBottom: 10, fontFamily: "monospace" }}>
-          Barrier mode
+        <div style={{ marginBottom: 18 }}>
+          <div style={{ fontSize: 9, letterSpacing: "0.18em", textTransform: "uppercase" as const, color: "rgba(255,255,255,0.85)", marginBottom: 10, fontFamily: "monospace" }}>
+            Barrier mode
+          </div>
+          <div style={{ display: "flex", gap: 6 }}>
+            {(["tunneling", "wall"] as TunnelingMode[]).map(mode => (
+              <button
+                key={mode}
+                onClick={() => setTunnelingMode(mode)}
+                style={{
+                  flex: 1, padding: "7px 0",
+                  fontFamily: "monospace", fontSize: 11, fontWeight: 700,
+                  cursor: "pointer", borderRadius: 5,
+                  border: `1px solid ${tunnelingMode === mode ? "#f59e0b" : "rgba(255,255,255,0.08)"}`,
+                  background: tunnelingMode === mode ? "rgba(245,158,11,0.1)" : "transparent",
+                  color: tunnelingMode === mode ? "#f59e0b" : "rgba(255,255,255,0.75)",
+                  transition: "all 0.18s",
+                }}
+              >
+                {mode === "tunneling" ? "Tunneling" : "Potential Wall"}
+              </button>
+            ))}
+          </div>
+          <div style={{ marginTop: 8, fontSize: 10, color: "rgba(255,255,255,0.75)", fontFamily: "monospace", lineHeight: 1.5 }}>
+            {tunnelingMode === "tunneling"
+              ? "E < V₀ — wave partially tunnels through the barrier."
+              : "V₀ → ∞ — barrier acts as a hard wall, full reflection."}
+          </div>
         </div>
-        <div style={{ display: "flex", gap: 6 }}>
-          {(["tunneling", "wall"] as TunnelingMode[]).map(mode => (
-            <button
-              key={mode}
-              onClick={() => setTunnelingMode(mode)}
-              style={{
-                flex: 1, padding: "7px 0",
-                fontFamily: "monospace", fontSize: 11, fontWeight: 700,
-                cursor: "pointer", borderRadius: 5,
-                border: `1px solid ${tunnelingMode === mode ? "#f59e0b" : "rgba(255,255,255,0.08)"}`,
-                background: tunnelingMode === mode ? "rgba(245,158,11,0.1)" : "transparent",
-                color: tunnelingMode === mode ? "#f59e0b" : "rgba(100,116,139,0.6)",
-                transition: "all 0.18s",
-              }}
-            >
-              {mode === "tunneling" ? "Tunneling" : "Potential Wall"}
-            </button>
-          ))}
-        </div>
-        <div style={{ marginTop: 8, fontSize: 10, color: "rgba(100,116,139,0.6)", fontFamily: "monospace", lineHeight: 1.5 }}>
-          {tunnelingMode === "tunneling"
-            ? "E < V₀ — wave partially tunnels through the barrier."
-            : "V₀ → ∞ — barrier acts as a hard wall, full reflection."}
-        </div>
-      </div>
-)}
-
+      )}
 
       <div style={{ height: 1, background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.08), transparent)", margin: "16px 0" }} />
-
-      <SectionLabel>Numerics</SectionLabel>
-
-      <EqDisplay
-        label="Crank–Nicolson scheme"
-        tex={String.raw`\left(I+\frac{i\Delta t}{2\hbar}H\right)\psi^{n+1}=\left(I-\frac{i\Delta t}{2\hbar}H\right)\psi^{n}`}
-      />
 
       {error && (
         <div style={{ marginTop: 10, padding: "9px 12px", background: "rgba(255,68,102,0.1)", border: "1px solid rgba(255,68,102,0.4)", borderRadius: 6, fontSize: 11, color: "#ff4466", fontFamily: "monospace" }}>

@@ -142,13 +142,6 @@ const handleCompute = useCallback(() => {
           >
             {data ? <LineChart x={x} y={prob} V={V} Vmax={Vmax} color="#22d3ee" /> : EMPTY}
             
-            {/* ADD this block: */}
-            {potential === "barrier" && tunnelingMode === "wall" && data && (
-              <div style={{ marginTop: 8, padding: "6px 10px", background: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.25)", borderRadius: 6, fontSize: 10, color: "#f87171", fontFamily: "monospace" }}>
-                Potential Wall — V₀ ≫ E → full reflection, T ≈ 0
-              </div>
-            )}
-            
             {potential === "barrier" && data && (
               <div style={{ marginTop: 10 }}>
                 <EqPanel label="T & R integrals" tex={String.raw`T=\!\int_{0.5}^{+\infty}\!|\psi|^2\,dx,\quad R=\!\int_{-\infty}^{-0.5}\!|\psi|^2\,dx`} />
