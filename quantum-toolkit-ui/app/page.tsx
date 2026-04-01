@@ -11,7 +11,8 @@ import { TEAM } from "./assets/data/teams";
 const SIMULATORS = [
   { href: "/simulator/wave-packet",  label: "Wave Packet",  tag: "Ready",       color: "var(--green)"  },
   { href: "/simulator/time-evolution",    label: "Time Evolution",    tag: "Ready", color: "var(--amber)"  },
-  { href: "/simulator/bound-states", label: "Bound States", tag: "Coming Soon", color: "white" },
+  { href: "/simulator/infinite-well", label: "Inifinite Well", tag: "Ready", color: "white" },
+  { href: "/simulator/superposition", label: "Superposition", tag: "Coming Soon", color: "red" },
 ];
 
 

@@ -22,7 +22,7 @@ B = I - (i·Δt/2ħ)·H
     id: "tise",
     title: "Stationary States",
     tag: "TISE",
-    route: "/simulator/bound-states",
+    route: "/simulator/infinite-well",
     color: "var(--violet)",
     equations: [
       "Ĥψₙ = Eₙψₙ",

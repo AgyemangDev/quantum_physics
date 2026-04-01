@@ -4,7 +4,7 @@ const links = [
   { href: "/",                      label: "Overview"    },
   { href: "/simulator/wave-packet", label: "Wave Packet" },
   { href: "/simulator/time-evolution",label: "Time Evolution"},
-  { href: "/simulator/bound-states",label: "Bound States"},
+  { href: "/simulator/infinite-well",label: "Inifinite Well" },
   { href: "/theory",                label: "Theory"      },
 ];
 
