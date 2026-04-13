@@ -2,23 +2,29 @@
 import { useEffect, useRef } from "react";
 
 interface LineChartProps {
-  x:      number[];
-  y:      number[];
-  y2?:    number[];
-  V?:     number[];
-  Vmax?:  number;
-  color?:  string;
-  color2?: string;
-  width?:  number;
-  height?: number;
+  x:        number[];
+  y:        number[];
+  y2?:      number[];
+  V?:       number[];
+  Vmax?:    number;
+  color?:   string;
+  color2?:  string;
+  width?:   number;
+  height?:  number;
+  /** Optional fixed Y-axis domain [min, max].
+   *  When provided the axis is frozen to these bounds so changes in
+   *  amplitude are visible as an actual change in wave height rather
+   *  than just a rescale of the viewport. */
+  yDomain?: [number, number];
 }
 
 export default function LineChart({
   x, y, y2, V, Vmax,
-  color  = "#22d3ee",
-  color2 = "#a78bfa",
-  width  = 420,
-  height = 190,
+  color   = "#22d3ee",
+  color2  = "#a78bfa",
+  width   = 420,
+  height  = 190,
+  yDomain,
 }: LineChartProps): JSX.Element {
   const ref = useRef<HTMLCanvasElement>(null);
 
@@ -38,17 +44,26 @@ export default function LineChart({
     ctx.fillStyle = "rgba(6,8,16,0.55)";
     ctx.fillRect(0, 0, width, height);
 
-    // Declare pad, W, H, mapX, mapY BEFORE first use
     const pad = { t: 14, b: 24, l: 10, r: 10 };
     const W = width  - pad.l - pad.r;
     const H = height - pad.t - pad.b;
 
-    const allY   = [...y, ...(y2 ?? [])];
-    const yMin   = Math.min(...allY);
-    const yMax   = Math.max(...allY);
+    // ── Y-axis bounds ────────────────────────────────────────────
+    // If a fixed domain is supplied we use it so the wave visually
+    // grows / shrinks as amplitude changes.  Otherwise fall back to
+    // auto-scaling (original behaviour).
+    let yMin: number, yMax: number;
+    if (yDomain) {
+      [yMin, yMax] = yDomain;
+    } else {
+      const allY = [...y, ...(y2 ?? [])];
+      yMin = Math.min(...allY);
+      yMax = Math.max(...allY);
+    }
     const yRange = yMax - yMin || 1;
-    const xMin   = x[0];
-    const xMax   = x[x.length - 1];
+
+    const xMin  = x[0];
+    const xMax  = x[x.length - 1];
     const xRange = xMax - xMin;
 
     const mapX = (xi: number) => pad.l + ((xi - xMin) / xRange) * W;
@@ -98,17 +113,14 @@ export default function LineChart({
       ctx.lineWidth = 1.5;
       ctx.beginPath();
 
-      // Find the actual displayable max — cap at 2× the prob density max
-      // so the barrier is always visible regardless of how large V0 is
-      const VdisplayMax = Vmax; 
-      
-V.forEach((v, i) => {
-  const vClamped = Math.min(v, VdisplayMax);
-  const vn = VdisplayMax > 0 ? (vClamped / VdisplayMax) * (H * 0.7) : 0;
-  const xp = pad.l + (i / (V.length - 1)) * W;
-  const yp = pad.t + H - vn;  // always anchored to chart bottom
-  i === 0 ? ctx.moveTo(xp, yp) : ctx.lineTo(xp, yp);
-});
+      const VdisplayMax = Vmax;
+      V.forEach((v, i) => {
+        const vClamped = Math.min(v, VdisplayMax);
+        const vn = VdisplayMax > 0 ? (vClamped / VdisplayMax) * (H * 0.7) : 0;
+        const xp = pad.l + (i / (V.length - 1)) * W;
+        const yp = pad.t + H - vn;
+        i === 0 ? ctx.moveTo(xp, yp) : ctx.lineTo(xp, yp);
+      });
       ctx.stroke();
       ctx.restore();
     }
@@ -160,7 +172,7 @@ V.forEach((v, i) => {
       if (v < xMin || v > xMax) return;
       ctx.fillText(String(v), mapX(v), height - 5);
     });
-  }, [x, y, y2, V, Vmax, color, color2, width, height]);
+  }, [x, y, y2, V, Vmax, color, color2, width, height, yDomain]);
 
   return (
     <canvas

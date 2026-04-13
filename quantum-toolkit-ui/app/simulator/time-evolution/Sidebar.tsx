@@ -1,6 +1,6 @@
 "use client";
 import dynamic from "next/dynamic";
-import { useEffect,useRef } from "react";
+import { useEffect, useRef } from "react";
 import type EqType from "../../components/Eq";
 import type { Potential, TunnelingMode } from "./types";
 
@@ -34,7 +34,6 @@ function EqDisplay({ label, tex }: { label: string; tex: string }) {
       background: "linear-gradient(135deg, rgba(255,255,255,0.04), rgba(255,255,255,0.01))",
       backdropFilter: "blur(6px)",
       boxShadow: "0 4px 20px rgba(0,0,0,0.25)",
-      transition: "all 0.2s ease",
     }}>
       <div style={{
         padding: "6px 12px",
@@ -55,21 +54,35 @@ function EqDisplay({ label, tex }: { label: string; tex: string }) {
 // ─── Slider ────────────────────────────────────────────────────
 
 function SliderField({
-  label, value, min, max, step, color = "#22d3ee", onChange,
+  label, value, min, max, step, color = "#22d3ee", onChange, hint,
 }: {
   label: string; value: number; min: number; max: number; step: number;
-  color?: string; onChange: (v: number) => void;
+  color?: string; onChange: (v: number) => void; hint?: string;
 }) {
   return (
     <div style={{ marginBottom: 18 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-        <span style={{ fontSize: 10, color: "rgba(255,255,255,0.85)", fontFamily: "monospace", letterSpacing: "0.08em" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+        <span style={{
+          fontSize: 10, color: "rgba(255,255,255,0.85)",
+          fontFamily: "monospace", letterSpacing: "0.08em",
+        }}>
           {label}
         </span>
-        <span style={{ fontSize: 13, color, fontFamily: "'JetBrains Mono', monospace", fontWeight: 700 }}>
+        <span style={{
+          fontSize: 13, color,
+          fontFamily: "'JetBrains Mono', monospace", fontWeight: 700,
+        }}>
           {value.toFixed(1)}
         </span>
       </div>
+      {hint && (
+        <div style={{
+          fontSize: 9, color: "rgba(255,255,255,0.38)",
+          fontFamily: "monospace", marginBottom: 5, lineHeight: 1.4,
+        }}>
+          {hint}
+        </div>
+      )}
       <input
         type="range" min={min} max={max} step={step} value={value}
         onChange={e => onChange(Number(e.target.value))}
@@ -78,6 +91,11 @@ function SliderField({
     </div>
   );
 }
+
+// ─── Live wave shape preview ────────────────────────────────────
+// Visualises amplitude (height) vs sigma (width) independently.
+
+
 
 // ─── Sidebar ───────────────────────────────────────────────────
 
@@ -110,13 +128,13 @@ export default function Sidebar({
   error,
 }: SidebarProps) {
 
-const onComputeRef = useRef(onCompute);
-useEffect(() => { onComputeRef.current = onCompute; });
+  const onComputeRef = useRef(onCompute);
+  useEffect(() => { onComputeRef.current = onCompute; });
 
-useEffect(() => {
-  const t = setTimeout(() => onComputeRef.current(), 300);
-  return () => clearTimeout(t);
-}, [x0, sigma, k0, V0, potential, tEnd, barrierWidth, amplitude, tunnelingMode]);
+  useEffect(() => {
+    const t = setTimeout(() => onComputeRef.current(), 300);
+    return () => clearTimeout(t);
+  }, [x0, sigma, k0, V0, potential, tEnd, barrierWidth, amplitude, tunnelingMode]);
 
   return (
     <aside style={{
@@ -147,16 +165,13 @@ useEffect(() => {
         tex={String.raw`i\hbar\frac{\partial\psi}{\partial t}=\left(-\frac{\hbar^2}{2m}\frac{\partial^2}{\partial x^2}+V(x)\right)\psi`}
       />
 
-      <SectionLabel>Initial conditions</SectionLabel>
-
       {/* Potential selector */}
       <SectionLabel>Potential type</SectionLabel>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, marginBottom: 18 }}>
         {([
-          { key: "free",     label: "Free",     desc: "spreading" },
-          { key: "barrier",  label: "Barrier",  desc: "tunneling" },
-          { key: "step",     label: "Step",     desc: "reflect / transmit" },
-          { key: "harmonic", label: "Harmonic", desc: "oscillator" },
+          { key: "free",    label: "Free",    desc: "spreading" },
+          { key: "barrier", label: "Barrier", desc: "tunneling" },
+          { key: "step",    label: "Step",    desc: "reflect / transmit" },
         ] as { key: Potential; label: string; desc: string }[]).map(({ key, label, desc }) => (
           <button
             key={key}
@@ -178,20 +193,62 @@ useEffect(() => {
         ))}
       </div>
 
-      <SliderField label="x₀ (position)"  value={x0}           min={-8}  max={0}   step={0.5}            onChange={setX0} />
-      <SliderField label="σ (spread)"     value={sigma}         min={0.2} max={2}   step={0.1} color="#22c55e" onChange={setSigma} />
-      <SliderField label="k₀ (momentum)"  value={k0}            min={1}   max={8}   step={0.5} color="#a78bfa" onChange={setK0} />
-      <SliderField label="V₀ (potential)" value={V0}            min={0}   max={30}  step={0.5} color="#f59e0b" onChange={setV0} />
-      <SliderField label="Barrier width"  value={barrierWidth}  min={0.2} max={4.0} step={0.1} color="#f59e0b" onChange={setBarrierWidth} />
-      <SliderField label="Wave amplitude" value={amplitude}     min={0.5} max={3.0} step={0.1} color="#fb923c" onChange={setAmplitude} />
-      <SliderField label="t_max (time)"   value={tEnd}          min={1}   max={20} step={1}   color="#38bdf8" onChange={setTEnd} />
+      {/* Position */}
+      <SectionLabel>Position</SectionLabel>
+      <SliderField
+        label="x₀  (initial position)"
+        value={x0} min={-8} max={0} step={0.5}
+        onChange={setX0}
+        hint="Where the centre of the packet starts"
+      />
+      <SliderField
+        label="σ  (spatial width)"
+        value={sigma} min={0.2} max={2} step={0.1}
+        color="#22c55e"
+        onChange={setSigma}
+        hint="How spread-out the packet is — peak height A is unaffected"
+      />
+
+      {/* Momentum */}
+      <SectionLabel>Momentum</SectionLabel>
+      <SliderField
+        label="k₀  (wave number)"
+        value={k0} min={1} max={8} step={0.5}
+        color="#a78bfa"
+        onChange={setK0}
+        hint="Sets oscillation frequency and group velocity"
+      />
+
+      {/* Potential */}
+      <SectionLabel>Potential & time</SectionLabel>
+      <SliderField
+        label="V₀  (potential height)"
+        value={V0} min={0} max={30} step={0.5}
+        color="#f59e0b"
+        onChange={setV0}
+        hint="Barrier or step height — independent of wave amplitude"
+      />
+
+      {potential === "barrier" && (
+        <SliderField
+          label="Barrier width"
+          value={barrierWidth} min={0.2} max={4.0} step={0.1}
+          color="#f59e0b"
+          onChange={setBarrierWidth}
+        />
+      )}
+
+      <SliderField
+        label="t_max  (simulation time)"
+        value={tEnd} min={1} max={20} step={1}
+        color="#38bdf8"
+        onChange={setTEnd}
+      />
 
       {/* Tunneling mode */}
       {potential === "barrier" && (
         <div style={{ marginBottom: 18 }}>
-          <div style={{ fontSize: 9, letterSpacing: "0.18em", textTransform: "uppercase" as const, color: "rgba(255,255,255,0.85)", marginBottom: 10, fontFamily: "monospace" }}>
-            Barrier mode
-          </div>
+          <SectionLabel>Barrier mode</SectionLabel>
           <div style={{ display: "flex", gap: 6 }}>
             {(["tunneling", "wall"] as TunnelingMode[]).map(mode => (
               <button

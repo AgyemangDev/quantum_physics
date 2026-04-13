@@ -1,5 +1,5 @@
 "use client";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import dynamic from "next/dynamic";
 import type EqType from "../../components/Eq";
 import Navbar from "../../components/Navbars/Navbar";
@@ -15,12 +15,11 @@ import { EqPanel } from "@/app/components/EqPanel";
 
 const Eq = dynamic(() => import("../../components/Eq"), { ssr: false }) as typeof EqType;
 
-
 const SPEEDS: Speed[] = [0.1, 0.5, 1, 2, 5];
 
 const EMPTY = (
   <div style={{ height: 190, display: "flex", alignItems: "center", justifyContent: "center", color: "rgba(51,65,85,0.7)", fontFamily: "monospace", fontSize: 12, letterSpacing: "0.06em" }}>
-    Adjust sliders to start. 
+    Adjust sliders to start.
   </div>
 );
 
@@ -34,6 +33,7 @@ export default function TimeEvolutionPage() {
   const [amplitude,     setAmplitude]     = useState(1.0);
   const [tunnelingMode, setTunnelingMode] = useState<TunnelingMode>("tunneling");
   const [tEnd,          setTEnd]          = useState(10.0);
+
   const { data, loading, error, compute } = useEvolve();
   const { frame, playing, speed, setSpeed, togglePlay, reset, seek } = useAnimation(data);
 
@@ -41,7 +41,7 @@ export default function TimeEvolutionPage() {
   const x     = data?.x    ?? [];
   const V     = data?.V    ?? [];
   const rawVmax = V.length ? Math.max(...V) : 1;
-  const Vmax = Math.min(rawVmax, 50);
+  const Vmax  = Math.min(rawVmax, 50);
   const prob  = currentFrame?.prob ?? [];
   const real  = currentFrame?.real ?? [];
   const imag  = currentFrame?.imag ?? [];
@@ -50,17 +50,55 @@ export default function TimeEvolutionPage() {
   const isLastFrame = data ? frame === data.n_frames - 1 : false;
   const { T, R } = data && potential === "barrier" ? computeTR(data) : { T: 0, R: 0 };
 
+  // ── Global Y-axis domains ────────────────────────────────────────────────
+  // Scan every frame once when `data` arrives to find the true global max
+  // across ALL frames. The axis is then locked to that value for the entire
+  // animation so the wave height looks consistent from frame 0 to the end.
+  // Previously we used hardcoded constants which caused the wave to appear
+  // tall at t=0 (near its peak) but tiny later when the packet spreads out.
+  const { probDomain, waveDomain } = useMemo<{
+    probDomain: [number, number];
+    waveDomain: [number, number];
+  }>(() => {
+    if (!data) return { probDomain: [0, 1], waveDomain: [-1, 1] };
 
-const handleCompute = useCallback(() => {
-  compute({
-    x0, sigma, k0, potential,
-    V0,
-    tEnd,
-    barrier_width: barrierWidth,
-    amplitude,
-    tunnelingMode,
-  });
-}, [x0, sigma, k0, potential, V0, tEnd, barrierWidth, amplitude, tunnelingMode, compute]);
+    let probMax = 0;
+    let waveMax = 0;
+
+    for (const f of data.frames) {
+      for (const v of f.prob) {
+        if (v > probMax) probMax = v;
+      }
+      for (const v of f.real) {
+        const a = Math.abs(v);
+        if (a > waveMax) waveMax = a;
+      }
+      if (f.imag) {
+        for (const v of f.imag) {
+          const a = Math.abs(v);
+          if (a > waveMax) waveMax = a;
+        }
+      }
+    }
+
+    // Add 15% headroom so the peak never clips the chart top
+    const HEADROOM = 1.15;
+    return {
+      probDomain: [0, probMax * HEADROOM] as [number, number],
+      waveDomain: [-waveMax * HEADROOM, waveMax * HEADROOM] as [number, number],
+    };
+  }, [data]); // recomputes only when a new simulation result arrives
+
+  const handleCompute = useCallback(() => {
+    compute({
+      x0, sigma, k0, potential,
+      V0,
+      tEnd,
+      barrier_width: barrierWidth,
+      amplitude,
+      tunnelingMode,
+    });
+  }, [x0, sigma, k0, potential, V0, tEnd, barrierWidth, amplitude, tunnelingMode, compute]);
 
   return (
     <div style={{ minHeight: "100vh", background: "var(--bg-void, #060810)" }}>
@@ -84,12 +122,6 @@ const handleCompute = useCallback(() => {
         />
 
         <main style={{ padding: "20px", display: "flex", flexDirection: "column", gap: 14, overflowY: "auto" }}>
-{/* 
-          {loading && (
-            <div style={{ padding: "14px", textAlign: "center", fontFamily: "monospace", fontSize: 12, color: "#22d3ee", letterSpacing: "0.1em", opacity: 0.8 }}>
-              ⟳ &nbsp;Solving Schrödinger equation…
-            </div>
-          )} */}
 
           {/* Animation controls */}
           {data && (
@@ -133,28 +165,32 @@ const handleCompute = useCallback(() => {
             </div>
           )}
 
-          {/* Charts 2×2 */}
+          {/* Charts */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-          <ChartPanel
-            title="Probability density"
-            eq={<Eq tex={String.raw`|\psi(x,t)|^2`} />}
-            legend={[{ color: "#22d3ee", label: "|ψ|²" }, { color: "rgba(251,191,36,0.55)", label: "V(x)" }]}
-          >
-            {data ? <LineChart x={x} y={prob} V={V} Vmax={Vmax} color="#22d3ee" /> : EMPTY}
-            
-            {potential === "barrier" && data && (
-              <div style={{ marginTop: 10 }}>
-                <EqPanel label="T & R integrals" tex={String.raw`T=\!\int_{0.5}^{+\infty}\!|\psi|^2\,dx,\quad R=\!\int_{-\infty}^{-0.5}\!|\psi|^2\,dx`} />
-              </div>
-            )}
-          </ChartPanel>
+            <ChartPanel
+              title="Probability density"
+              eq={<Eq tex={String.raw`|\psi(x,t)|^2`} />}
+              legend={[{ color: "#22d3ee", label: "|ψ|²" }, { color: "rgba(251,191,36,0.55)", label: "V(x)" }]}
+            >
+              {data
+                ? <LineChart x={x} y={prob} V={V} Vmax={Vmax} color="#22d3ee" yDomain={probDomain} />
+                : EMPTY}
+
+              {potential === "barrier" && data && (
+                <div style={{ marginTop: 10 }}>
+                  <EqPanel label="T & R integrals" tex={String.raw`T=\!\int_{0.5}^{+\infty}\!|\psi|^2\,dx,\quad R=\!\int_{-\infty}^{-0.5}\!|\psi|^2\,dx`} />
+                </div>
+              )}
+            </ChartPanel>
 
             <ChartPanel
               title="Real & imaginary parts"
               eq={<Eq tex={String.raw`\psi=\mathrm{Re}(\psi)+i\,\mathrm{Im}(\psi)`} />}
               legend={[{ color: "#22d3ee", label: "Re(ψ)" }, { color: "#a78bfa", label: "Im(ψ)" }]}
             >
-              {data ? <LineChart x={x} y={real} y2={imag} color="#22d3ee" color2="#a78bfa" /> : EMPTY}
+              {data
+                ? <LineChart x={x} y={real} y2={imag} color="#22d3ee" color2="#a78bfa" yDomain={waveDomain} />
+                : EMPTY}
             </ChartPanel>
           </div>
 
