@@ -94,10 +94,41 @@ class EigenstateData(BaseModel):
 
 
 class InfiniteWellResponse(BaseModel):
-    x:                  List[float]
-    V:                  List[float]
-    energies:           List[float]
+    x:                   List[float]
+    V:                   List[float]
+    energies:            List[float]
     analytical_energies: List[float]
-    eigenstates:        List[EigenstateData]
-    well_width:         float
-    n_states:           int
+    eigenstates:         List[EigenstateData]
+    well_width:          float
+    n_states:            int
+
+
+# ---------------------------------------------------------------------------
+# Superposition — Request / Response
+# ---------------------------------------------------------------------------
+
+class SuperpositionRequest(BaseModel):
+    coefficients: List[float] = Field(
+        default=[1.0, 0.5, 0.25],
+        description="Coefficients cₙ pour chaque état propre (non normalisés)"
+    )
+    x_left:   float = Field(default=-5.0,  ge=-9.0, le=0.0,  description="Bord gauche du puits")
+    x_right:  float = Field(default=5.0,   ge=0.0,  le=9.0,  description="Bord droit du puits")
+    t_end:    float = Field(default=5.0,   ge=0.1,  le=30.0, description="Temps total")
+    dt:       float = Field(default=0.01,  ge=0.001, le=0.1, description="Pas de temps")
+    store_every: int = Field(default=5,    ge=1,    le=20,   description="1 frame tous les n pas")
+    x_min:    float = Field(default=-10.0)
+    x_max:    float = Field(default=10.0)
+    N:        int   = Field(default=512,   ge=128,  le=1024)
+
+
+class SuperpositionResponse(BaseModel):
+    x:            List[float]
+    V:            List[float]
+    times:        List[float]
+    frames:       List[FrameData]
+    n_frames:     int
+    energies:     List[float]
+    coefficients: List[float]   # normalized coefficients
+    t_end:        float
+    well_width:   float
