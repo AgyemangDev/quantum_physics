@@ -102,8 +102,8 @@ class SuperpositionRequest(BaseModel):
         default=[1.0, 0.5, 0.25],
         description="Coefficients cₙ pour chaque état propre (non normalisés)"
     )
-    x_left:   float = Field(default=-5.0,  ge=-9.0, le=0.0,  description="Bord gauche du puits")
-    x_right:  float = Field(default=5.0,   ge=0.0,  le=9.0,  description="Bord droit du puits")
+    x_left:   float = Field(default=-5.0,  ge=-8.0, le=0.0,  description="Bord gauche du puits")
+    x_right:  float = Field(default=5.0,   ge=0.0,  le=8.0,  description="Bord droit du puits")
     t_end:    float = Field(default=5.0,   ge=0.1,  le=30.0, description="Temps total")
     dt:       float = Field(default=0.01,  ge=0.001, le=0.1, description="Pas de temps")
     store_every: int = Field(default=5,    ge=1,    le=20,   description="1 frame tous les n pas")
