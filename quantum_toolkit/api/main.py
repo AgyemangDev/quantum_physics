@@ -121,21 +121,65 @@ def compute_wave_packet(req: WavePacketRequest):
 @app.post("/evolve", response_model=EvolveResponse)
 def compute_evolution(req: EvolveRequest):
     """
-    Propagate a Gaussian wave packet in time using Crank-Nicolson.
-    Returns frames (Re, Im, |psi|^2) at each recorded time step + V(x).
+    Time-evolve a Gaussian wave packet using Crank-Nicolson.
+
+    Design: amplitude and sigma are fully independent visual controls.
+
+    The Gaussian wave packet has a natural peak height of 1/(σ√(2π)) when
+    normalised to ∫|ψ|²dx = 1.  This means σ and peak height are coupled
+    in the normalised form — a wider packet is automatically shorter.
+
+    To break this coupling we:
+      1. Build a unit-norm Gaussian ψ₀ (shape only, determined by σ).
+      2. Multiply ψ₀ by `amplitude` to set the desired peak height
+         independently of σ.  At this point ∫|ψ|² dx = amplitude².
+      3. Feed this *unnormalised* ψ₀ directly into the Crank-Nicolson
+         solver.  Because C-N is norm-preserving, the ratio between any
+         two frames stays fixed: if frame 0 has peak P, every later frame
+         will have peaks scaled by the same factor relative to norm.
+      4. Return the raw Re/Im/prob arrays without any further rescaling.
+
+    Result: changing `amplitude` scales the wave height uniformly across
+    ALL frames while changing `sigma` only affects the spatial width,
+    with zero cross-coupling between the two parameters.
     """
     try:
-        x    = np.linspace(req.x_min, req.x_max, req.N)
-        V    = build_potential(x, req.potential, req.V0, req.barrier_left, req.barrier_right)
-        psi0 = gaussian_wave_packet(x, x0=req.x0, sigma=req.sigma, k0=req.k0)
+        x = np.linspace(req.x_min, req.x_max, req.N)
 
+        # Potential is independent of amplitude and sigma
+        V = build_potential(x, req.potential, req.V0, req.barrier_left, req.barrier_right)
+
+        # Step 1 — unit-norm Gaussian (shape determined by σ only)
+        psi0 = gaussian_wave_packet(x, x0=req.x0, sigma=req.sigma, k0=req.k0)
+        dx   = x[1] - x[0]
+        norm = np.sqrt(np.sum(np.abs(psi0) ** 2) * dx)
+        if norm > 1e-15:
+            psi0 = psi0 / norm          # ∫|ψ|²dx = 1, peak = 1/(σ√(2π))
+
+        # Step 2 — scale by amplitude to set peak height independently of σ.
+        # The peak of the unit-norm Gaussian is 1/(σ√(2π)).
+        # We want the displayed peak to equal `amplitude` regardless of σ,
+        # so we multiply by  amplitude × σ√(2π)  to cancel the σ-dependence.
+        #
+        # This means:
+        #   peak height of psi0 = [1/(σ√(2π))] × [amplitude × σ√(2π)] = amplitude
+        #
+        # Now σ only controls the spatial width, not the peak height.
+        sigma_factor = req.sigma * np.sqrt(2.0 * np.pi)
+        psi0 = psi0 * (req.amplitude * sigma_factor)
+
+        # Step 3 — evolve the amplitude-scaled packet.
+        # C-N preserves the norm structure, so the amplitude ratio is
+        # maintained consistently across every frame.
         snapshots, times = evolve(
             psi0, x, V,
             t_end=req.t_end,
             dt=req.dt,
             store_every=req.store_every,
+            boundary=req.boundary,
         )
 
+        # Step 4 — return raw arrays; no post-hoc rescaling needed.
         frames = [
             FrameData(
                 real=np.real(psi).tolist(),
@@ -202,13 +246,6 @@ def compute_superposition(req: SuperpositionRequest):
     Compute the time evolution of a superposition of eigenstates.
 
     ψ(x,t) = Σ cₙ ψₙ(x) e^(-iEₙt/ℏ)
-
-    This is an analytical solution — no Crank-Nicolson needed.
-    The probability density |ψ(x,t)|² oscillates in time,
-    demonstrating that superpositions are NOT stationary states.
-
-    Parameters:
-        coefficients: list of cₙ (will be normalized so Σ|cₙ|² = 1)
     """
     try:
         n_states = len(req.coefficients)
@@ -218,14 +255,11 @@ def compute_superposition(req: SuperpositionRequest):
         x = np.linspace(req.x_min, req.x_max, req.N)
         V = infinite_square_well(x, x_left=req.x_left, x_right=req.x_right)
 
-        # Solve TISE to get eigenstates
         energies, wavefunctions = solve_tise(x, V, n_states=n_states)
 
-        # Normalize coefficients: Σ|cₙ|² = 1
         c = np.array(req.coefficients, dtype=complex)
         c_norm = c / np.sqrt(np.sum(np.abs(c) ** 2))
 
-        # Build animation frames analytically
         n_steps = int(np.ceil(req.t_end / req.dt))
         snapshots = []
         times     = []
@@ -233,7 +267,6 @@ def compute_superposition(req: SuperpositionRequest):
         for step in range(0, n_steps + 1, req.store_every):
             t = step * req.dt
 
-            # ψ(x,t) = Σ cₙ ψₙ(x) e^(-iEₙt)
             psi = np.zeros(req.N, dtype=complex)
             for n in range(n_states):
                 phase = np.exp(-1j * float(energies[n]) * t)

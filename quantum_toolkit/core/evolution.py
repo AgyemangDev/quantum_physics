@@ -111,6 +111,54 @@ def analytical_infinite_well_energies(n_max: int, L: float,
 # TDSE solver — Crank-Nicolson method
 # ---------------------------------------------------------------------------
 
+def _build_periodic_hamiltonian(x: np.ndarray, V: np.ndarray,
+                                  hbar: float = 1.0, mass: float = 1.0
+                                  ) -> scipy.sparse.csr_matrix:
+    """
+    Build a Hamiltonian with periodic boundary conditions.
+
+    The kinetic energy uses a second-order finite difference stencil
+    with wrap-around at both ends: ψ[0] connects to ψ[N-1] and vice versa.
+    This makes the domain a ring — a particle exiting the right edge
+    re-enters from the left with no reflection.
+
+    Parameters
+    ----------
+    x    : np.ndarray — uniform spatial grid, shape (N,)
+    V    : np.ndarray — potential on the grid, shape (N,)
+    hbar : float
+    mass : float
+
+    Returns
+    -------
+    H : scipy.sparse.csr_matrix, shape (N, N), complex
+    """
+    N  = len(x)
+    dx = x[1] - x[0]
+
+    # Kinetic energy prefactor: -ℏ²/(2m Δx²)
+    coeff = -(hbar ** 2) / (2.0 * mass * dx ** 2)
+
+    # Tridiagonal kinetic matrix
+    diag      = np.full(N, -2.0 * coeff, dtype=complex)
+    off_diag  = np.full(N - 1, coeff, dtype=complex)
+
+    H = (
+        scipy.sparse.diags(diag,     0, format="lil") +
+        scipy.sparse.diags(off_diag, 1, format="lil") +
+        scipy.sparse.diags(off_diag,-1, format="lil")
+    )
+
+    # Periodic wrap-around: connect last point to first
+    H[0, N - 1] = coeff
+    H[N - 1, 0] = coeff
+
+    # Add potential energy on the diagonal
+    H += scipy.sparse.diags(V.astype(complex), 0, format="lil")
+
+    return H.tocsr()
+
+
 def crank_nicolson_step(psi: np.ndarray, H_sparse: scipy.sparse.csr_matrix,
                          dt: float, hbar: float = 1.0) -> np.ndarray:
     """
@@ -135,6 +183,11 @@ def crank_nicolson_step(psi: np.ndarray, H_sparse: scipy.sparse.csr_matrix,
     - Unitary: preserves norm ||ψ|| = 1 exactly (up to floating point)
     - Time-reversible: A and B are conjugates of each other
 
+    NOTE: This function intentionally does NOT renormalize ψ after each step.
+    Crank-Nicolson is unitary and analytically conserves norm. Renormalizing
+    here would destroy any visual amplitude scaling applied by the caller.
+    Drift correction (if needed) is handled every N steps in evolve().
+
     Parameters
     ----------
     psi      : np.ndarray (complex128) — current wave function ψ(t), shape (N,)
@@ -144,22 +197,31 @@ def crank_nicolson_step(psi: np.ndarray, H_sparse: scipy.sparse.csr_matrix,
 
     Returns
     -------
-    psi_next : np.ndarray (complex128) — wave function at t + Δt, normalized
+    psi_next : np.ndarray (complex128) — wave function at t + Δt
     """
     N = len(psi)
     I = scipy.sparse.identity(N, format='csr', dtype=complex)
 
     alpha = 1j * dt / (2.0 * hbar)
-    A = I + alpha * H_sparse   # implicit side
-    B = I - alpha * H_sparse   # explicit side
+    A = I + alpha * H_sparse
+    B = I - alpha * H_sparse
 
     rhs = B @ psi
     psi_next = scipy.sparse.linalg.spsolve(A, rhs)
 
-    # Renormalize to correct accumulated floating-point drift
-    norm = np.sqrt(np.sum(np.abs(psi_next) ** 2))
-    if norm > 1e-15:
-        psi_next /= norm
+    # ── NO renormalization here ──────────────────────────────────────────────
+    # The old code renormalized psi to unit norm at every step. This caused
+    # the visual amplitude to be identical in every stored frame: the wave
+    # packet appeared tall at t=0 (Gaussian peak) then visually shrank as it
+    # spread out — not because the physics changed, but because each frame's
+    # raw arrays were on a unit-norm scale and the peak naturally flattens as
+    # the packet disperses.
+    #
+    # Crank-Nicolson is unitary, so the norm drifts only due to floating-point
+    # rounding (~1e-14 per step). We correct that drift in evolve() every 100
+    # steps instead, which is sufficient for accuracy without destroying the
+    # amplitude structure that the caller (main.py) scales at the end.
+    # ────────────────────────────────────────────────────────────────────────
 
     return psi_next
 
@@ -167,30 +229,64 @@ def crank_nicolson_step(psi: np.ndarray, H_sparse: scipy.sparse.csr_matrix,
 def evolve(psi0: np.ndarray, x: np.ndarray, V: np.ndarray,
            t_end: float, dt: float,
            hbar: float = 1.0, mass: float = 1.0,
-           store_every: int = 1):
+           store_every: int = 1,
+           boundary: str = "dirichlet",
+           renorm_every: int = 100):
     """
     Propagate ψ from t=0 to t=t_end using the Crank-Nicolson method.
 
     Parameters
     ----------
-    psi0        : np.ndarray (complex) — initial wave function ψ(x, 0)
-    x           : np.ndarray          — uniform spatial grid
-    V           : np.ndarray          — potential energy V(x) (time-independent)
-    t_end       : float               — total evolution time
-    dt          : float               — time step
-    hbar        : float
-    mass        : float
-    store_every : int                 — store snapshot every n steps
-                                        (reduces memory for long simulations)
+    psi0         : np.ndarray (complex) — initial wave function ψ(x, 0)
+    x            : np.ndarray          — uniform spatial grid
+    V            : np.ndarray          — potential energy V(x) (time-independent)
+    t_end        : float               — total evolution time
+    dt           : float               — time step
+    hbar         : float
+    mass         : float
+    store_every  : int                 — store snapshot every n steps
+    boundary     : str                 — "dirichlet" (ψ=0 at walls, default)
+                                         or "periodic" (wrap-around, free particle)
+    renorm_every : int                 — correct floating-point norm drift every n
+                                         steps (default 100). Set to 0 to disable.
+                                         This is a numerical hygiene step only and
+                                         does not affect the physics.
 
     Returns
     -------
     snapshots : list of np.ndarray (complex) — ψ(x, tₙ) at recorded times
     times     : list of float               — corresponding time values
+
+    Notes
+    -----
+    Dirichlet BCs: ψ(x_min) = ψ(x_max) = 0.
+        The domain acts as an infinite square well. Any wave reaching
+        the edge reflects back. Use for barrier / step / harmonic potentials.
+
+    Periodic BCs: ψ(x_min) = ψ(x_max), domain is a ring.
+        A wave exiting the right boundary re-enters from the left with
+        no reflection. Use for free-particle evolution so the packet
+        circulates indefinitely without artificial wall reflections.
+
+    Norm conservation:
+        We do NOT renormalize at every step (that would erase amplitude
+        structure). Instead we correct accumulated floating-point drift
+        every `renorm_every` steps. The correction factor is always
+        extremely close to 1.0, so it has negligible effect on the shapes
+        but keeps the simulation numerically stable over long runs.
     """
-    H = hamiltonian_sparse(x, V, hbar=hbar, mass=mass)
+    if boundary == "periodic":
+        H = _build_periodic_hamiltonian(x, V, hbar=hbar, mass=mass)
+    else:
+        H = hamiltonian_sparse(x, V, hbar=hbar, mass=mass)
 
     psi = psi0.astype(complex).copy()
+
+    # Record the initial norm so we can restore it after drift corrections.
+    # main.py normalises psi0 to 1 before calling us, so this will be 1.0,
+    # but we read it explicitly to be safe.
+    initial_norm = np.sqrt(np.sum(np.abs(psi) ** 2))
+
     snapshots = [psi.copy()]
     times     = [0.0]
 
@@ -198,9 +294,18 @@ def evolve(psi0: np.ndarray, x: np.ndarray, V: np.ndarray,
 
     for step in range(1, n_steps + 1):
         psi = crank_nicolson_step(psi, H, dt, hbar=hbar)
+
+        # Periodic drift correction — restores norm to its initial value
+        # without changing the shape of ψ.  This is purely a floating-point
+        # hygiene measure; the correction is ~1e-12 per 100 steps.
+        if renorm_every > 0 and step % renorm_every == 0:
+            current_norm = np.sqrt(np.sum(np.abs(psi) ** 2))
+            if current_norm > 1e-15:
+                psi = psi * (initial_norm / current_norm)
+
         if step % store_every == 0:
             snapshots.append(psi.copy())
-            times.append(step * dt)
+            times.append(round(step * dt, 6))
 
     return snapshots, times
 

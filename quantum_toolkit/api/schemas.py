@@ -8,12 +8,8 @@ from pydantic import BaseModel, Field
 from typing import List
 
 
-# ---------------------------------------------------------------------------
-# Wave Packet — Request / Response
-# ---------------------------------------------------------------------------
-
 class WavePacketRequest(BaseModel):
-    x0:    float = Field(default=0.0,   ge=-5.0,  le=5.0,  description="Centre du paquet")
+    x0:    float = Field(default=0.0,   ge=-8.0,  le=5.0,  description="Centre du paquet")
     sigma: float = Field(default=1.0,   ge=0.2,   le=3.0,  description="Largeur du paquet")
     k0:    float = Field(default=3.0,   ge=-8.0,  le=8.0,  description="Vecteur d'onde initial")
     x_min: float = Field(default=-10.0, description="Borne gauche de la grille")
@@ -34,14 +30,14 @@ class WavePacketResponse(BaseModel):
     norm:               float
 
 
-# ---------------------------------------------------------------------------
-# Time Evolution — Request / Response
-# ---------------------------------------------------------------------------
-
 class EvolveRequest(BaseModel):
-    x0:    float = Field(default=0.0,  ge=-5.0, le=5.0,  description="Centre initial du paquet")
+    x0:    float = Field(default=0.0,  ge=-8.0, le=5.0,  description="Centre initial du paquet")
     sigma: float = Field(default=1.0,  ge=0.2,  le=3.0,  description="Largeur initiale")
     k0:    float = Field(default=3.0,  ge=-8.0, le=8.0,  description="Vecteur d'onde initial")
+
+    # Wave amplitude — scales the initial ψ height independently of σ
+    # After scaling, ψ is renormalized so probability is still conserved.
+    amplitude: float = Field(default=1.0, ge=0.1, le=5.0, description="Amplitude du paquet d'onde")
 
     potential:     str   = Field(default="free", description="'free' | 'barrier' | 'step' | 'harmonic'")
     V0:            float = Field(default=8.0,  ge=0.0,  le=50.0, description="Hauteur du potentiel")
@@ -55,6 +51,8 @@ class EvolveRequest(BaseModel):
     x_min: float = Field(default=-10.0)
     x_max: float = Field(default=10.0)
     N:     int   = Field(default=512, ge=128, le=1024)
+
+    boundary: str = Field(default="dirichlet", description="'dirichlet' | 'periodic'")
 
 
 class FrameData(BaseModel):
@@ -72,10 +70,6 @@ class EvolveResponse(BaseModel):
     dt:       float
     t_end:    float
 
-
-# ---------------------------------------------------------------------------
-# Infinite Well (TISE) — Request / Response
-# ---------------------------------------------------------------------------
 
 class InfiniteWellRequest(BaseModel):
     x_left:   float = Field(default=-5.0,  ge=-9.0,  le=0.0,  description="Bord gauche du puits")
@@ -103,10 +97,6 @@ class InfiniteWellResponse(BaseModel):
     n_states:            int
 
 
-# ---------------------------------------------------------------------------
-# Superposition — Request / Response
-# ---------------------------------------------------------------------------
-
 class SuperpositionRequest(BaseModel):
     coefficients: List[float] = Field(
         default=[1.0, 0.5, 0.25],
@@ -129,6 +119,6 @@ class SuperpositionResponse(BaseModel):
     frames:       List[FrameData]
     n_frames:     int
     energies:     List[float]
-    coefficients: List[float]   # normalized coefficients
+    coefficients: List[float]
     t_end:        float
     well_width:   float

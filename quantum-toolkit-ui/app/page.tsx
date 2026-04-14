@@ -12,7 +12,7 @@ const SIMULATORS = [
   { href: "/simulator/wave-packet",  label: "Wave Packet",  tag: "Ready",       color: "var(--green)"  },
   { href: "/simulator/time-evolution",    label: "Time Evolution",    tag: "Ready", color: "var(--amber)"  },
   { href: "/simulator/infinite-well", label: "Inifinite Well", tag: "Ready", color: "white" },
-  { href: "/simulator/superposition", label: "Superposition", tag: "Coming Soon", color: "red" },
+  { href: "/simulator/superposition", label: "Superposition", tag: "Ready", color: "red" },
 ];
 
 
