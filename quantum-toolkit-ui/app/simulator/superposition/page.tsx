@@ -6,6 +6,7 @@ import { TopBar }           from "./TopBar";
 import { Sidebar }          from "./Sidebar";
 import { useSimulation, usePlayback } from "./useSimulation";
 import type { SimulationParams, PlaybackSpeed, SimulationResult } from "./types";
+import Navbar from "../../components/Navbars/Navbar";
 
 const DEFAULT_PARAMS: SimulationParams = {
   coefficients: [0, 1, 0.7],
@@ -254,6 +255,7 @@ export default function SuperpositionPage() {
         overflow:        "hidden",
       }}
     >
+         <Navbar />
       <style>{`
         @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.35} }
         input[type=number] { outline: none; }

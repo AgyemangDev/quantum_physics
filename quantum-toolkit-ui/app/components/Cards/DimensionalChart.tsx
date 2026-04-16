@@ -73,25 +73,26 @@ export function EnvelopeChart({ data, x0, sigma }: {
 // ── Surface3D — Re(ψ(x,y)) mesh rendered with Three.js ───────────────────────
 
 function Surface3D({ x0, k0, sigma }: { x0: number; k0: number; sigma: number }) {
-  const mountRef = useRef<HTMLDivElement>(null);
+  const mountRef   = useRef<HTMLDivElement>(null);
   const rendererRef = useRef<any>(null);
-  const frameRef = useRef<number>(0);
-  const radiusRef = useRef<number>(26);
-  const angleRef = useRef<number>(Math.PI * 0.15);
+  const frameRef   = useRef<number>(0);
+  const radiusRef  = useRef<number>(26);
+  const angleRef   = useRef<number>(Math.PI * 0.15);
+  const timeRef    = useRef<number>(0);
+  const lastTsRef  = useRef<number>(0);
 
   useEffect(() => {
     if (!mountRef.current) return;
     const el = mountRef.current;
-    const W = el.clientWidth || 600;
-    const H = 380;
-
+    const W  = el.clientWidth || 600;
+    const H  = 380;
     let animating = true;
 
     import("three").then((THREE) => {
-      if (!animating) return; // component already unmounted/re-ran before THREE loaded
+      if (!animating) return;
 
-      const scene = new THREE.Scene();
-      const camera = new THREE.PerspectiveCamera(50, W / H, 0.01, 500);
+      const scene    = new THREE.Scene();
+      const camera   = new THREE.PerspectiveCamera(50, W / H, 0.01, 500);
       camera.position.set(0, 12, 26);
       camera.lookAt(0, 1, 0);
 
@@ -100,11 +101,18 @@ function Surface3D({ x0, k0, sigma }: { x0: number; k0: number; sigma: number })
       renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
       renderer.setClearColor(0x000000, 0);
       el.appendChild(renderer.domElement);
-      rendererRef.current = renderer;
 
       const RANGE = 12;
+      const N     = 400;
+      const sig   = Math.max(sigma, 0.3);
+      // ω = k₀²/2  (free particle dispersion, ℏ=m=1)
+      const omega = (k0 * k0) / 2;
 
-      const mkAxis = (from: [number,number,number], to: [number,number,number], color: number) => {
+      const mkAxis = (
+        from: [number, number, number],
+        to:   [number, number, number],
+        color: number,
+      ) => {
         const mat = new THREE.LineBasicMaterial({ color });
         const geo = new THREE.BufferGeometry().setFromPoints([
           new THREE.Vector3(...from),
@@ -117,24 +125,40 @@ function Surface3D({ x0, k0, sigma }: { x0: number; k0: number; sigma: number })
       mkAxis([0, -RANGE * 0.5, 0], [0, RANGE * 0.5, 0], 0xffffff);
       mkAxis([0, 0, -RANGE], [0, 0, RANGE], 0xffffff);
 
-      const N = 400;
-      const sig = Math.max(sigma, 0.3);
+      // Pre-build position arrays — update in-place each frame
+      const rePositions = new Float32Array(N * 3);
+      const imPositions = new Float32Array(N * 3);
 
-      const buildWave = (getPoint: (xi: number, A: number) => THREE.Vector3, color: number) => {
-        const points: THREE.Vector3[] = [];
+      const reGeo = new THREE.BufferGeometry();
+      const imGeo = new THREE.BufferGeometry();
+      reGeo.setAttribute("position", new THREE.BufferAttribute(rePositions, 3));
+      imGeo.setAttribute("position", new THREE.BufferAttribute(imPositions, 3));
+
+      const reLine = new THREE.Line(reGeo, new THREE.LineBasicMaterial({ color: 0x22d3ee, linewidth: 2 }));
+      const imLine = new THREE.Line(imGeo, new THREE.LineBasicMaterial({ color: 0xa78bfa, linewidth: 2 }));
+      scene.add(reLine);
+      scene.add(imLine);
+
+      const updateWaves = (t: number) => {
         for (let i = 0; i < N; i++) {
-          const xi = -RANGE + (2 * RANGE * i) / (N - 1);
-          const dx = xi - x0;
-          const A = Math.exp(-(dx * dx) / (4 * sig * sig));
-          points.push(getPoint(xi, A));
-        }
-        const geo = new THREE.BufferGeometry().setFromPoints(points);
-        const mat = new THREE.LineBasicMaterial({ color, linewidth: 2 });
-        scene.add(new THREE.Line(geo, mat));
-      };
+          const xi  = -RANGE + (2 * RANGE * i) / (N - 1);
+          const dx  = xi - x0;
+          const A   = Math.exp(-(dx * dx) / (4 * sig * sig));
+          const phi = k0 * xi - omega * t;          // phase evolves with time
+          const re  = A * Math.cos(phi) * 4.5;
+          const im  = A * Math.sin(phi) * 4.5;
 
-      buildWave((xi, A) => new THREE.Vector3(xi, A * Math.cos(k0 * xi) * 4.5, 0), 0x22d3ee);
-      buildWave((xi, A) => new THREE.Vector3(xi, 0, A * Math.sin(k0 * xi) * 4.5), 0xa78bfa);
+          rePositions[i * 3]     = xi;
+          rePositions[i * 3 + 1] = re;
+          rePositions[i * 3 + 2] = 0;
+
+          imPositions[i * 3]     = xi;
+          imPositions[i * 3 + 1] = 0;
+          imPositions[i * 3 + 2] = im;
+        }
+        reGeo.attributes.position.needsUpdate = true;
+        imGeo.attributes.position.needsUpdate = true;
+      };
 
       const onWheel = (e: WheelEvent) => {
         e.preventDefault();
@@ -142,18 +166,30 @@ function Surface3D({ x0, k0, sigma }: { x0: number; k0: number; sigma: number })
       };
       el.addEventListener("wheel", onWheel, { passive: false });
 
-      const animate = () => {
+      const animate = (ts: number) => {
         if (!animating) return;
         frameRef.current = requestAnimationFrame(animate);
+
+        // Accumulate real wall-clock time for the phase
+        if (lastTsRef.current !== 0) {
+          timeRef.current += (ts - lastTsRef.current) / 1000;
+        }
+        lastTsRef.current = ts;
+
+        updateWaves(timeRef.current);
+
         angleRef.current += 0.004;
         const r = radiusRef.current;
-        camera.position.set(Math.sin(angleRef.current) * r, r * 0.46, Math.cos(angleRef.current) * r);
+        camera.position.set(
+          Math.sin(angleRef.current) * r,
+          r * 0.46,
+          Math.cos(angleRef.current) * r,
+        );
         camera.lookAt(0, 1, 0);
         renderer.render(scene, camera);
       };
-      animate();
 
-      // store cleanup for the outer return
+      frameRef.current = requestAnimationFrame(animate);
       rendererRef.current = { renderer, el, onWheel };
     });
 
@@ -167,6 +203,8 @@ function Surface3D({ x0, k0, sigma }: { x0: number; k0: number; sigma: number })
         if (canvas) rendererRef.current.el.removeChild(canvas);
         rendererRef.current = null;
       }
+      lastTsRef.current = 0;
+      timeRef.current   = 0;
     };
   }, [x0, k0, sigma]);
 
@@ -179,12 +217,11 @@ function Surface3D({ x0, k0, sigma }: { x0: number; k0: number; sigma: number })
         color: "rgba(255,255,255,0.3)",
         pointerEvents: "none",
       }}>
-        scroll / pinch to zoom
+        scroll to zoom
       </div>
     </div>
   );
 }
-
 // ── Chart 3 — Re(ψ) and Im(ψ) with 1D / 3D surface toggle ───────────────────
 
 export function ReImChart({ data, x0, k0, sigma }: {
