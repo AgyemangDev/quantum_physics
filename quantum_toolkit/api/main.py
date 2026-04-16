@@ -8,10 +8,10 @@ Run with:
 
 Available endpoints:
     GET  /                -> health check
-    POST /wave-packet     -> Gaussian wave packet (Sprint 1)
-    POST /evolve          -> Time evolution Crank-Nicolson (Sprint 2)
-    POST /infinite-well   -> TISE eigenstates — infinite square well (Sprint 3)
-    POST /superposition   -> Linear combination of eigenstates (Sprint 4)
+    POST /wave-packet     -> Gaussian wave packet
+    POST /evolve          -> Time evolution Crank-Nicolson
+    POST /infinite-well   -> TISE eigenstates — infinite square well
+    POST /superposition   -> Linear combination of eigenstates
 """
 
 import sys
@@ -35,8 +35,8 @@ from core.wavefunctions import (
 )
 from core.potentials import (
     free_particle, potential_barrier,
-    potential_step, harmonic_oscillator,
-    infinite_square_well,
+    potential_step, infinite_square_well,
+    # harmonic_oscillator is intentionally NOT imported — removed from codebase.
 )
 from core.evolution import evolve, solve_tise, analytical_infinite_well_energies
 
@@ -47,8 +47,8 @@ from core.evolution import evolve, solve_tise, analytical_infinite_well_energies
 
 app = FastAPI(
     title="Quantum Toolkit API",
-    description="REST API for quantum mechanics simulations — JUNIA M1 2025/2026",
-    version="0.4.0",
+    description="REST API for quantum mechanics simulations",
+    version="0.5.0",
 )
 
 app.add_middleware(
@@ -63,17 +63,46 @@ app.add_middleware(
 # Potential factory (for /evolve)
 # ---------------------------------------------------------------------------
 
-def build_potential(x, potential_type, V0, barrier_left, barrier_right):
+WALL_V0 = 1e6  # Approximation of an infinite wall
+
+def build_potential(x: np.ndarray, potential_type: str,
+                    V0: float, barrier_left: float, barrier_right: float) -> np.ndarray:
+    """
+    Build the potential V(x) on the grid.
+
+    Supported types
+    ---------------
+    free    : V(x) = 0 everywhere.  No reflections — use with periodic BCs.
+    barrier : Finite rectangular barrier centred at x=0.  Supports tunneling.
+    step    : Abrupt potential step at x=0.  Partial reflection/transmission.
+    wall    : High V0 at domain edges → hard wall, full reflection, standing waves.
+              NOTE: for wall, we raise V0 at the grid boundaries, not at the centre.
+              The Dirichlet BCs in evolution.py already enforce ψ=0 at the very edge,
+              so this adds an extra thick absorbing layer for physical clarity.
+    """
     if potential_type == "free":
         return free_particle(x)
+
     elif potential_type == "barrier":
+        # Finite rectangular barrier — adjustable height and width
         return potential_barrier(x, x_left=barrier_left, x_right=barrier_right, V0=V0)
+
     elif potential_type == "step":
+        # Step at the centre of the domain (x_step = 0)
         return potential_step(x, x_step=0.0, V0=V0)
-    elif potential_type == "harmonic":
-        return harmonic_oscillator(x, omega=1.0, x0=0.0)
+
+    elif potential_type == "wall":
+        # Effectively infinite walls at both domain edges.
+        # We place thick barriers near x_min and x_max so the wave
+        # reflects well before it reaches the Dirichlet boundary.
+        V = np.zeros_like(x)
+        edge = (x[-1] - x[0]) * 0.05  # 5% of domain width on each side
+        V[x <= x[0] + edge]  = WALL_V0
+        V[x >= x[-1] - edge] = WALL_V0
+        return V
+
     else:
-        raise ValueError(f"Unknown potential type: {potential_type}")
+        raise ValueError(f"Unknown potential type: {potential_type!r}")
 
 
 # ---------------------------------------------------------------------------
@@ -84,7 +113,7 @@ def build_potential(x, potential_type, V0, barrier_left, barrier_right):
 def root():
     return {
         "message": "Quantum Toolkit API is running",
-        "version": "0.4.0",
+        "version": "0.5.0",
         "endpoints": ["/wave-packet", "/evolve", "/infinite-well", "/superposition"],
     }
 
@@ -121,65 +150,54 @@ def compute_wave_packet(req: WavePacketRequest):
 @app.post("/evolve", response_model=EvolveResponse)
 def compute_evolution(req: EvolveRequest):
     """
-    Time-evolve a Gaussian wave packet using Crank-Nicolson.
+    Propagate a Gaussian wave packet in time using Crank-Nicolson.
 
-    Design: amplitude and sigma are fully independent visual controls.
+    Physics notes
+    -------------
+    Free particle   : Uses periodic boundary conditions so the packet circulates
+                      without artificial wall reflections.  V(x)=0 everywhere.
 
-    The Gaussian wave packet has a natural peak height of 1/(σ√(2π)) when
-    normalised to ∫|ψ|²dx = 1.  This means σ and peak height are coupled
-    in the normalised form — a wider packet is automatically shorter.
+    Barrier         : Finite rectangular barrier at centre.  Crank-Nicolson with
+                      Dirichlet BCs (ψ=0 at edges).  Partial tunneling / reflection.
 
-    To break this coupling we:
-      1. Build a unit-norm Gaussian ψ₀ (shape only, determined by σ).
-      2. Multiply ψ₀ by `amplitude` to set the desired peak height
-         independently of σ.  At this point ∫|ψ|² dx = amplitude².
-      3. Feed this *unnormalised* ψ₀ directly into the Crank-Nicolson
-         solver.  Because C-N is norm-preserving, the ratio between any
-         two frames stays fixed: if frame 0 has peak P, every later frame
-         will have peaks scaled by the same factor relative to norm.
-      4. Return the raw Re/Im/prob arrays without any further rescaling.
+    Step            : Abrupt step at x=0.  Partial transmission for E > V₀,
+                      partial evanescent for E < V₀.
 
-    Result: changing `amplitude` scales the wave height uniformly across
-    ALL frames while changing `sigma` only affects the spatial width,
-    with zero cross-coupling between the two parameters.
+    Wall            : Very high V at domain edges → wave reflects fully and forms
+                      standing-wave interference patterns.
+
+    Amplitude       : The initial wavepacket psi0 is first normalised to unit norm,
+                      then scaled by `amplitude`.  This sets the peak height and
+                      persists across all frames because Crank-Nicolson is linear
+                      (norm-conserving up to drift correction).
     """
     try:
         x = np.linspace(req.x_min, req.x_max, req.N)
-
-        # Potential is independent of amplitude and sigma
         V = build_potential(x, req.potential, req.V0, req.barrier_left, req.barrier_right)
 
-        # Step 1 — unit-norm Gaussian (shape determined by σ only)
+        # Build and normalise psi0
         psi0 = gaussian_wave_packet(x, x0=req.x0, sigma=req.sigma, k0=req.k0)
-        dx   = x[1] - x[0]
-        norm = np.sqrt(np.sum(np.abs(psi0) ** 2) * dx)
-        if norm > 1e-15:
-            psi0 = psi0 / norm          # ∫|ψ|²dx = 1, peak = 1/(σ√(2π))
+        norm0 = np.sqrt(np.trapezoid(np.abs(psi0) ** 2, x))
+        if norm0 > 1e-15:
+            psi0 = psi0 / norm0  # unit norm first
 
-        # Step 2 — scale by amplitude to set peak height independently of σ.
-        # The peak of the unit-norm Gaussian is 1/(σ√(2π)).
-        # We want the displayed peak to equal `amplitude` regardless of σ,
-        # so we multiply by  amplitude × σ√(2π)  to cancel the σ-dependence.
-        #
-        # This means:
-        #   peak height of psi0 = [1/(σ√(2π))] × [amplitude × σ√(2π)] = amplitude
-        #
-        # Now σ only controls the spatial width, not the peak height.
-        sigma_factor = req.sigma * np.sqrt(2.0 * np.pi)
-        psi0 = psi0 * (req.amplitude * sigma_factor)
+        # Apply amplitude as a vertical scale (independent of sigma)
+        # Crank-Nicolson is linear, so this scale factor is preserved in time.
+        psi0 = psi0 * req.amplitude
 
-        # Step 3 — evolve the amplitude-scaled packet.
-        # C-N preserves the norm structure, so the amplitude ratio is
-        # maintained consistently across every frame.
+        # Boundary condition:
+        #   periodic → free particle ring domain (no reflections)
+        #   dirichlet → ψ=0 at walls (barrier, step, wall, default)
+        boundary = req.boundary if hasattr(req, "boundary") else "dirichlet"
+
         snapshots, times = evolve(
             psi0, x, V,
             t_end=req.t_end,
             dt=req.dt,
             store_every=req.store_every,
-            boundary=req.boundary,
+            boundary=boundary,
         )
 
-        # Step 4 — return raw arrays; no post-hoc rescaling needed.
         frames = [
             FrameData(
                 real=np.real(psi).tolist(),
@@ -189,9 +207,13 @@ def compute_evolution(req: EvolveRequest):
             for psi in snapshots
         ]
 
+        # Cap V for serialisation so wall potential (1e6) doesn't break JSON consumers.
+        # Consumers use Vmax from the response to scale the visual overlay.
+        V_serialised = np.clip(V, 0, 200).tolist()
+
         return EvolveResponse(
             x=x.tolist(),
-            V=V.tolist(),
+            V=V_serialised,
             times=times,
             frames=frames,
             n_frames=len(frames),
@@ -261,17 +283,13 @@ def compute_superposition(req: SuperpositionRequest):
         c_norm = c / np.sqrt(np.sum(np.abs(c) ** 2))
 
         n_steps = int(np.ceil(req.t_end / req.dt))
-        snapshots = []
-        times     = []
+        snapshots, times = [], []
 
         for step in range(0, n_steps + 1, req.store_every):
             t = step * req.dt
-
             psi = np.zeros(req.N, dtype=complex)
             for n in range(n_states):
-                phase = np.exp(-1j * float(energies[n]) * t)
-                psi  += c_norm[n] * wavefunctions[:, n] * phase
-
+                psi += c_norm[n] * wavefunctions[:, n] * np.exp(-1j * float(energies[n]) * t)
             snapshots.append(psi.copy())
             times.append(round(t, 6))
 
