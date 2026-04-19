@@ -1,5 +1,5 @@
 "use client";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import dynamic from "next/dynamic";
 import type EqType from "../../components/Eq";
 import Navbar from "../../components/Navbars/Navbar";
@@ -27,11 +27,12 @@ const EMPTY = (
   </div>
 );
 
-// T + R is physically meaningful only for barrier and step potentials.
 const POTENTIAL_HAS_TR: Partial<Record<Potential, boolean>> = {
   barrier: true,
   step:    true,
 };
+
+type ChartId = "prob" | "reIm" | null;
 
 export default function TimeEvolutionPage() {
   const [x0,           setX0]           = useState(-4.0);
@@ -42,14 +43,21 @@ export default function TimeEvolutionPage() {
   const [barrierWidth, setBarrierWidth] = useState(1.0);
   const [amplitude,    setAmplitude]    = useState(1.0);
   const [tEnd,         setTEnd]         = useState(10.0);
+  const [expandedChart, setExpandedChart] = useState<ChartId>(null);
 
   const { data, loading, error, compute } = useEvolve();
   const { frame, playing, speed, setSpeed, togglePlay, reset, seek } = useAnimation(data);
 
+  // Escape to collapse
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") setExpandedChart(null); };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, []);
+
   const currentFrame = data?.frames[frame];
   const x     = data?.x    ?? [];
   const V     = data?.V    ?? [];
-  // Cap the visual Vmax at 50 so large wall values don't shrink the barrier render
   const rawVmax = V.length ? Math.max(...V) : 1;
   const Vmax  = Math.min(rawVmax, 50);
   const prob  = currentFrame?.prob ?? [];
@@ -62,14 +70,50 @@ export default function TimeEvolutionPage() {
   const { T, R } = showTR ? computeTR(data!) : { T: 0, R: 0 };
 
   const handleCompute = useCallback(() => {
-    compute({
-      x0, sigma, k0, potential,
-      V0,
-      tEnd,
-      barrier_width: barrierWidth,
-      amplitude,
-    });
+    compute({ x0, sigma, k0, potential, V0, tEnd, barrier_width: barrierWidth, amplitude });
   }, [x0, sigma, k0, potential, V0, tEnd, barrierWidth, amplitude, compute]);
+
+  const toggleChart = (id: ChartId) =>
+    setExpandedChart(prev => (prev === id ? null : id));
+
+  // ── Chart content builders ──────────────────────────────────────────────
+  const probChart = (exp: boolean) => (
+    <ChartPanel
+      title="Probability density"
+      eq={<Eq tex={String.raw`|\psi(x,t)|^2`} />}
+      legend={[
+        { color: "#22d3ee",              label: "|ψ|²" },
+        { color: "rgba(251,191,36,0.55)", label: "V(x)" },
+      ]}
+    >
+      {data
+        ? <LineChart x={x} y={prob} V={V} Vmax={Vmax} color="#22d3ee" expanded={exp} />
+        : EMPTY}
+      {showTR && exp && (
+        <div style={{ marginTop: 10 }}>
+          <EqPanel
+            label="T & R integrals"
+            tex={String.raw`T=\!\int_{0.5}^{+\infty}\!|\psi|^2\,dx,\quad R=\!\int_{-\infty}^{-0.5}\!|\psi|^2\,dx`}
+          />
+        </div>
+      )}
+    </ChartPanel>
+  );
+
+  const reImChart = (exp: boolean) => (
+    <ChartPanel
+      title="Real & imaginary parts"
+      eq={<Eq tex={String.raw`\psi=\mathrm{Re}(\psi)+i\,\mathrm{Im}(\psi)`} />}
+      legend={[
+        { color: "#22d3ee", label: "Re(ψ)" },
+        { color: "#a78bfa", label: "Im(ψ)" },
+      ]}
+    >
+      {data
+        ? <LineChart x={x} y={real} y2={imag} color="#22d3ee" color2="#a78bfa" expanded={exp} />
+        : EMPTY}
+    </ChartPanel>
+  );
 
   return (
     <div style={{ minHeight: "100vh", background: "var(--bg-void, #060810)" }}>
@@ -140,22 +184,15 @@ export default function TimeEvolutionPage() {
           {/* Metrics */}
           {data && (
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-              <MetricCard label="Frame"   value={`${frame} / ${data.n_frames - 1}`}         color="#22d3ee" sub="animation step" />
-              <MetricCard label="Time  t" value={`${(times[frame] ?? 0).toFixed(3)} s`}      color="#a78bfa" sub="evolution time" />
-
+              <MetricCard label="Frame"   value={`${frame} / ${data.n_frames - 1}`}    color="#22d3ee" sub="animation step" />
+              <MetricCard label="Time  t" value={`${(times[frame] ?? 0).toFixed(3)} s`} color="#a78bfa" sub="evolution time" />
               {showTR && (
                 <>
-                  <MetricCard
-                    label="T  transmission"
-                    value={T.toFixed(4)}
-                    color="#22c55e"
+                  <MetricCard label="T  transmission" value={T.toFixed(4)} color="#22c55e"
                     sub="∫|ψ|² dx   x > 0.5"
                     footer={<Eq tex={String.raw`T=\int_{0.5}^{+\infty}|\psi|^2\,dx`} />}
                   />
-                  <MetricCard
-                    label="R  reflection"
-                    value={R.toFixed(4)}
-                    color="#f87171"
+                  <MetricCard label="R  reflection" value={R.toFixed(4)} color="#f87171"
                     sub="∫|ψ|² dx   x < −0.5"
                     footer={<Eq tex={String.raw`R=\int_{-\infty}^{-0.5}|\psi|^2\,dx`} />}
                   />
@@ -165,13 +202,8 @@ export default function TimeEvolutionPage() {
                     border: `1px solid ${Math.abs(T + R - 1) < 0.05 ? "rgba(34,197,94,0.28)" : "rgba(248,113,113,0.28)"}`,
                     borderRadius: 10,
                   }}>
-                    <div style={{ fontSize: 9, color: "rgba(148,163,184,0.45)", letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 4, fontFamily: "monospace" }}>
-                      T + R
-                    </div>
-                    <div style={{
-                      fontFamily: "monospace", fontSize: 20, fontWeight: 700,
-                      color: Math.abs(T + R - 1) < 0.05 ? "#22c55e" : "#f87171",
-                    }}>
+                    <div style={{ fontSize: 9, color: "rgba(148,163,184,0.45)", letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 4, fontFamily: "monospace" }}>T + R</div>
+                    <div style={{ fontFamily: "monospace", fontSize: 20, fontWeight: 700, color: Math.abs(T + R - 1) < 0.05 ? "#22c55e" : "#f87171" }}>
                       {(T + R).toFixed(4)}
                     </div>
                     <div style={{ fontSize: 10, color: "rgba(100,116,139,0.7)", marginTop: 2 }}>
@@ -186,39 +218,84 @@ export default function TimeEvolutionPage() {
             </div>
           )}
 
-          {/* Charts 2×2 */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-            <ChartPanel
-              title="Probability density"
-              eq={<Eq tex={String.raw`|\psi(x,t)|^2`} />}
-              legend={[
-                { color: "#22d3ee",            label: "|ψ|²" },
-                { color: "rgba(251,191,36,0.55)", label: "V(x)" },
-              ]}
-            >
-              {data ? <LineChart x={x} y={prob} V={V} Vmax={Vmax} color="#22d3ee" /> : EMPTY}
+          {/* ── Charts ── */}
+          {expandedChart ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: 14, flex: 1 }}>
+              {/* Hint bar */}
+              <div style={{
+                display: "flex", justifyContent: "space-between", alignItems: "center",
+                padding: "6px 14px",
+                background: "rgba(255,255,255,0.03)",
+                border: "1px solid rgba(255,255,255,0.07)",
+                borderRadius: 8,
+                fontSize: 10, fontFamily: "monospace", color: "rgba(148,163,184,0.5)",
+              }}>
+                <span>
+                  {expandedChart === "prob" ? "Probability density — expanded" : "Re & Im parts — expanded"}
+                </span>
+                <button
+                  onClick={() => setExpandedChart(null)}
+                  style={{
+                    background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)",
+                    color: "rgba(148,163,184,0.7)", borderRadius: 5, padding: "3px 10px",
+                    fontFamily: "monospace", fontSize: 10, cursor: "pointer",
+                  }}
+                >
+                  ✕ collapse  [Esc]
+                </button>
+              </div>
 
-              {showTR && (
-                <div style={{ marginTop: 10 }}>
-                  <EqPanel
-                    label="T & R integrals"
-                    tex={String.raw`T=\!\int_{0.5}^{+\infty}\!|\psi|^2\,dx,\quad R=\!\int_{-\infty}^{-0.5}\!|\psi|^2\,dx`}
-                  />
-                </div>
-              )}
-            </ChartPanel>
+              {/* Expanded chart */}
+              <div
+                onClick={() => setExpandedChart(null)}
+                style={{
+                  flex: 1, minHeight: 400, cursor: "zoom-out",
+                  border: "1px solid rgba(255,255,255,0.09)",
+                  borderRadius: 12, overflow: "hidden",
+                }}
+              >
+                {expandedChart === "prob" ? probChart(true) : reImChart(true)}
+              </div>
 
-            <ChartPanel
-              title="Real & imaginary parts"
-              eq={<Eq tex={String.raw`\psi=\mathrm{Re}(\psi)+i\,\mathrm{Im}(\psi)`} />}
-              legend={[
-                { color: "#22d3ee", label: "Re(ψ)" },
-                { color: "#a78bfa", label: "Im(ψ)" },
-              ]}
-            >
-              {data ? <LineChart x={x} y={real} y2={imag} color="#22d3ee" color2="#a78bfa" /> : EMPTY}
-            </ChartPanel>
-          </div>
+              {/* Collapsed other chart */}
+              <div
+                onClick={() => toggleChart(expandedChart === "prob" ? "reIm" : "prob")}
+                style={{
+                  cursor: "zoom-in", opacity: 0.6,
+                  border: "1px solid rgba(255,255,255,0.06)",
+                  borderRadius: 10, overflow: "hidden",
+                  transition: "opacity 0.15s",
+                }}
+                onMouseEnter={e => (e.currentTarget.style.opacity = "0.9")}
+                onMouseLeave={e => (e.currentTarget.style.opacity = "0.6")}
+              >
+                {expandedChart === "prob" ? reImChart(false) : probChart(false)}
+              </div>
+            </div>
+
+          ) : (
+            /* Normal 2-column grid */
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+              <div
+                onClick={() => toggleChart("prob")}
+                style={{ cursor: "zoom-in", borderRadius: 12, overflow: "hidden" }}
+                onMouseEnter={e => (e.currentTarget.style.boxShadow = "0 0 0 1px rgba(255,255,255,0.12)")}
+                onMouseLeave={e => (e.currentTarget.style.boxShadow = "none")}
+                title="Click to expand"
+              >
+                {probChart(false)}
+              </div>
+              <div
+                onClick={() => toggleChart("reIm")}
+                style={{ cursor: "zoom-in", borderRadius: 12, overflow: "hidden" }}
+                onMouseEnter={e => (e.currentTarget.style.boxShadow = "0 0 0 1px rgba(255,255,255,0.12)")}
+                onMouseLeave={e => (e.currentTarget.style.boxShadow = "none")}
+                title="Click to expand"
+              >
+                {reImChart(false)}
+              </div>
+            </div>
+          )}
 
         </main>
       </div>

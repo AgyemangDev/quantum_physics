@@ -80,6 +80,7 @@ function Surface3D({ x0, k0, sigma }: { x0: number; k0: number; sigma: number })
   const angleRef   = useRef<number>(Math.PI * 0.15);
   const timeRef    = useRef<number>(0);
   const lastTsRef  = useRef<number>(0);
+  const ANIM_DURATION = 2.0; 
 
   useEffect(() => {
     if (!mountRef.current) return;
@@ -166,28 +167,31 @@ function Surface3D({ x0, k0, sigma }: { x0: number; k0: number; sigma: number })
       };
       el.addEventListener("wheel", onWheel, { passive: false });
 
-      const animate = (ts: number) => {
-        if (!animating) return;
-        frameRef.current = requestAnimationFrame(animate);
+const animate = (ts: number) => {
+  if (!animating) return;
 
-        // Accumulate real wall-clock time for the phase
-        if (lastTsRef.current !== 0) {
-          timeRef.current += (ts - lastTsRef.current) / 1000;
-        }
-        lastTsRef.current = ts;
+  if (lastTsRef.current !== 0) {
+    const dt = (ts - lastTsRef.current) / 1000;
+    if (timeRef.current < ANIM_DURATION) {
+      timeRef.current = Math.min(timeRef.current + dt, ANIM_DURATION);
+      updateWaves(timeRef.current);
+    }
+    // Camera always rotates (cheap, looks alive)
+    angleRef.current += 0.004;
+    const r = radiusRef.current;
+    camera.position.set(
+      Math.sin(angleRef.current) * r,
+      r * 0.46,
+      Math.cos(angleRef.current) * r,
+    );
+    camera.lookAt(0, 1, 0);
+    renderer.render(scene, camera);
+  }
+  lastTsRef.current = ts;
 
-        updateWaves(timeRef.current);
-
-        angleRef.current += 0.004;
-        const r = radiusRef.current;
-        camera.position.set(
-          Math.sin(angleRef.current) * r,
-          r * 0.46,
-          Math.cos(angleRef.current) * r,
-        );
-        camera.lookAt(0, 1, 0);
-        renderer.render(scene, camera);
-      };
+  // Only keep the loop alive — camera still needs to rotate
+  frameRef.current = requestAnimationFrame(animate);
+};
 
       frameRef.current = requestAnimationFrame(animate);
       rendererRef.current = { renderer, el, onWheel };

@@ -9,12 +9,9 @@ import { EqPanel } from "@/app/components/EqPanel";
 
 import EnergyLevelChart from "./EnergyLevelChart";
 import ProbDensityChart  from "./ProbDensityChart";
-import EnergyBarChart    from "./EnergyBarChart";
 import { useInfiniteWell } from "./useInfiniteWell";
 
 const Eq = dynamic(() => import("../../components/Eq"), { ssr: false }) as typeof EqType;
-
-// ─── Slider ───────────────────────────────────────────────────────────────────
 
 function SliderField({ label, value, min, max, step, color = "white", onChange, onCommit }: {
   label: string; value: number; min: number; max: number; step: number;
@@ -36,35 +33,35 @@ function SliderField({ label, value, min, max, step, color = "white", onChange, 
   );
 }
 
-// ─── Constants ────────────────────────────────────────────────────────────────
-
 const STATE_COLORS = ["white","#a78bfa","#34d399","#f59e0b","#f87171",
                       "#38bdf8","#c084fc","#4ade80","#fbbf24","#fb7185"];
 
-// ─── Page ─────────────────────────────────────────────────────────────────────
+type ChartId = "energy" | "prob" | null;
 
 export default function InfiniteWellPage() {
-  // Display values (update live while dragging)
   const [wellWidth, setWellWidth] = useState(10.0);
   const [nStates,   setNStates]   = useState(5);
-
-  // Committed values (trigger API only on pointer release)
   const [wellWidthCommitted, setWellWidthCommitted] = useState(10.0);
   const [nStatesCommitted,   setNStatesCommitted]   = useState(5);
-
-  const [selectedN, setSelectedN] = useState(0);  // ← was missing
+  const [selectedN, setSelectedN] = useState(0);
+  const [expandedChart, setExpandedChart] = useState<ChartId>(null);
 
   const { data, loading, error, compute } = useInfiniteWell();
 
-  // Compute only when committed values change
   useEffect(() => {
     compute({ wellWidth: wellWidthCommitted, nStates: nStatesCommitted });
   }, [wellWidthCommitted, nStatesCommitted, compute]);
 
-  // Clamp selectedN if nStates decreases
   useEffect(() => {
     if (selectedN >= nStates) setSelectedN(nStates - 1);
   }, [nStates, selectedN]);
+
+  // Escape key to close expanded chart
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") setExpandedChart(null); };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, []);
 
   const selColor = STATE_COLORS[selectedN % STATE_COLORS.length];
   const numE     = data?.energies[selectedN]            ?? 0;
@@ -76,6 +73,9 @@ export default function InfiniteWellPage() {
         Math.abs(e - data.analytical_energies[i]) / data.analytical_energies[i] * 100
       )).toFixed(4)
     : "—";
+
+  const toggleChart = (id: ChartId) =>
+    setExpandedChart(prev => (prev === id ? null : id));
 
   return (
     <div style={{ minHeight: "100vh", background: "var(--bg-void, #060810)" }}>
@@ -106,7 +106,7 @@ export default function InfiniteWellPage() {
           <div style={{ fontSize: 9, letterSpacing: "0.18em", textTransform: "uppercase", color: "white", margin: "4px 0 12px", fontFamily: "monospace" }}>Parameters</div>
 
           <SliderField
-            label="Well width  L" value={wellWidth} min={2} max={18} step={0.5} color="white"
+            label="Well width  L" value={wellWidth} min={2} max={12} step={0.5} color="white"
             onChange={setWellWidth}
             onCommit={setWellWidthCommitted}
           />
@@ -168,53 +168,139 @@ export default function InfiniteWellPage() {
             </div>
           )}
 
-          {/* Charts row 1 */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-            <ChartPanel
-              title="Energy level diagram"
-              eq={<Eq tex={String.raw`\hat{H}\psi_n = E_n\psi_n`} />}
-              legend={[{ color: "#f59e0b", label: "V(x)" }]}
-            >
-              {data
-                ? <EnergyLevelChart data={data} selectedN={selectedN} />
-                : <div style={{ height: 220, display: "flex", alignItems: "center", justifyContent: "center", color: "rgba(51,65,85,0.7)", fontFamily: "monospace", fontSize: 12 }}>Loading…</div>
-              }
-            </ChartPanel>
+          {/* ── Expanded chart view ── */}
+          {expandedChart && data ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: 14, flex: 1 }}>
+              {/* Hint bar */}
+              <div style={{
+                display: "flex", justifyContent: "space-between", alignItems: "center",
+                padding: "6px 14px",
+                background: "rgba(255,255,255,0.03)",
+                border: "1px solid rgba(255,255,255,0.07)",
+                borderRadius: 8,
+                fontSize: 10, fontFamily: "monospace", color: "rgba(148,163,184,0.5)",
+              }}>
+                <span>
+                  {expandedChart === "energy" ? "Energy level diagram — expanded" : `Probability density |ψ${selectedN + 1}(x)|² — expanded`}
+                </span>
+                <button
+                  onClick={() => setExpandedChart(null)}
+                  style={{
+                    background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)",
+                    color: "rgba(148,163,184,0.7)", borderRadius: 5, padding: "3px 10px",
+                    fontFamily: "monospace", fontSize: 10, cursor: "pointer",
+                  }}
+                >
+                  ✕ collapse  [Esc]
+                </button>
+              </div>
 
-            <ChartPanel
-              title={`Probability density  |ψ${selectedN + 1}(x)|²`}
-              eq={<Eq tex={String.raw`|\psi_n(x)|^2`} />}
-              legend={[{ color: STATE_COLORS[selectedN], label: `ψ${selectedN + 1}` }, { color: "rgba(245,158,11,0.5)", label: "V(x)" }]}
-            >
-              {data
-                ? <ProbDensityChart data={data} selectedN={selectedN} />
-                : <div style={{ height: 220, display: "flex", alignItems: "center", justifyContent: "center", color: "rgba(51,65,85,0.7)", fontFamily: "monospace", fontSize: 12 }}>Loading…</div>
-              }
-            </ChartPanel>
-          </div>
+              {/* Expanded chart — full width, tall */}
+              <div
+                onClick={() => setExpandedChart(null)}
+                style={{
+                  flex: 1, minHeight: 480, cursor: "zoom-out",
+                  border: "1px solid rgba(255,255,255,0.09)",
+                  borderRadius: 12, overflow: "hidden",
+                  transition: "all 0.2s ease",
+                }}
+              >
+                {expandedChart === "energy" ? (
+                  <ChartPanel
+                    title="Energy level diagram"
+                    eq={<Eq tex={String.raw`\hat{H}\psi_n = E_n\psi_n`} />}
+                    legend={[{ color: "#f59e0b", label: "V(x)" }]}
+                  >
+                    <EnergyLevelChart data={data} selectedN={selectedN} expanded />
+                  </ChartPanel>
+                ) : (
+                  <ChartPanel
+                    title={`Probability density  |ψ${selectedN + 1}(x)|²`}
+                    eq={<Eq tex={String.raw`|\psi_n(x)|^2`} />}
+                    legend={[{ color: STATE_COLORS[selectedN], label: `ψ${selectedN + 1}` }, { color: "rgba(245,158,11,0.5)", label: "V(x)" }]}
+                  >
+                    <ProbDensityChart data={data} selectedN={selectedN} expanded />
+                  </ChartPanel>
+                )}
+              </div>
 
-          {/* Chart row 2 — full width */}
-          <ChartPanel
-            title="Numerical vs Analytical energies"
-            eq={<Eq tex={String.raw`E_n = \frac{n^2\pi^2\hbar^2}{2mL^2}`} />}
-            legend={[{ color: "white", label: "Numerical" }, { color: "#a78bfa", label: "Analytical" }]}
-          >
-            {data
-              ? <EnergyBarChart data={data} selectedN={selectedN} />
-              : <div style={{ height: 200, display: "flex", alignItems: "center", justifyContent: "center", color: "rgba(51,65,85,0.7)", fontFamily: "monospace", fontSize: 12 }}>Loading…</div>
-            }
-          </ChartPanel>
+              {/* Other chart — compact below */}
+              <div
+                onClick={() => toggleChart(expandedChart === "energy" ? "prob" : "energy")}
+                style={{
+                  cursor: "zoom-in", opacity: 0.6,
+                  border: "1px solid rgba(255,255,255,0.06)",
+                  borderRadius: 10, overflow: "hidden",
+                  transition: "opacity 0.15s",
+                }}
+                onMouseEnter={e => (e.currentTarget.style.opacity = "0.9")}
+                onMouseLeave={e => (e.currentTarget.style.opacity = "0.6")}
+              >
+                {expandedChart === "energy" ? (
+                  <ChartPanel
+                    title={`Probability density  |ψ${selectedN + 1}(x)|²`}
+                    eq={<Eq tex={String.raw`|\psi_n(x)|^2`} />}
+                    legend={[{ color: STATE_COLORS[selectedN], label: `ψ${selectedN + 1}` }]}
+                  >
+                    <ProbDensityChart data={data} selectedN={selectedN} />
+                  </ChartPanel>
+                ) : (
+                  <ChartPanel
+                    title="Energy level diagram"
+                    eq={<Eq tex={String.raw`\hat{H}\psi_n = E_n\psi_n`} />}
+                    legend={[{ color: "#f59e0b", label: "V(x)" }]}
+                  >
+                    <EnergyLevelChart data={data} selectedN={selectedN} />
+                  </ChartPanel>
+                )}
+              </div>
+            </div>
 
-          {/* Equation reference — 2 col grid */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-            <EqPanel label="Hamiltonian"           tex={String.raw`\hat{H} = -\frac{\hbar^2}{2m}\frac{d^2}{dx^2} + V(x)`} />
-            <EqPanel label="Normalization"         tex={String.raw`\int_{-\infty}^{+\infty}|\psi_n(x)|^2\,dx = 1`} />
-            <EqPanel label="Infinite well potential" tex={String.raw`V(x) = \begin{cases} 0 & x \in [-L/2,\, L/2] \\ \infty & \text{otherwise} \end{cases}`} />
-            <EqPanel label="Energy quantization"   tex={String.raw`E_n \propto \frac{n^2}{L^2}, \quad n = 1,2,3,\ldots`} />
-          </div>
+          ) : (
+            /* ── Normal 2-column grid ── */
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+              <div
+                onClick={() => toggleChart("energy")}
+                style={{ cursor: "zoom-in", borderRadius: 12, overflow: "hidden", transition: "box-shadow 0.15s" }}
+                onMouseEnter={e => (e.currentTarget.style.boxShadow = "0 0 0 1px rgba(255,255,255,0.12)")}
+                onMouseLeave={e => (e.currentTarget.style.boxShadow = "none")}
+                title="Click to expand"
+              >
+                <ChartPanel
+                  title="Energy level diagram"
+                  eq={<Eq tex={String.raw`\hat{H}\psi_n = E_n\psi_n`} />}
+                  legend={[{ color: "#f59e0b", label: "V(x)" }]}
+                >
+                  {data
+                    ? <EnergyLevelChart data={data} selectedN={selectedN} />
+                    : <div style={{ height: 220, display: "flex", alignItems: "center", justifyContent: "center", color: "rgba(51,65,85,0.7)", fontFamily: "monospace", fontSize: 12 }}>Loading…</div>
+                  }
+                </ChartPanel>
+              </div>
 
-          {/* Physics callouts — separate from equation grid */}
-          {data && (
+              <div
+                onClick={() => toggleChart("prob")}
+                style={{ cursor: "zoom-in", borderRadius: 12, overflow: "hidden", transition: "box-shadow 0.15s" }}
+                onMouseEnter={e => (e.currentTarget.style.boxShadow = "0 0 0 1px rgba(255,255,255,0.12)")}
+                onMouseLeave={e => (e.currentTarget.style.boxShadow = "none")}
+                title="Click to expand"
+              >
+                <ChartPanel
+                  title={`Probability density  |ψ${selectedN + 1}(x)|²`}
+                  eq={<Eq tex={String.raw`|\psi_n(x)|^2`} />}
+                  legend={[{ color: STATE_COLORS[selectedN], label: `ψ${selectedN + 1}` }, { color: "rgba(245,158,11,0.5)", label: "V(x)" }]}
+                >
+                  {data
+                    ? <ProbDensityChart data={data} selectedN={selectedN} />
+                    : <div style={{ height: 220, display: "flex", alignItems: "center", justifyContent: "center", color: "rgba(51,65,85,0.7)", fontFamily: "monospace", fontSize: 12 }}>Loading…</div>
+                  }
+                </ChartPanel>
+              </div>
+            </div>
+          )}
+
+          {/* Physics callouts */}
+          {data && !expandedChart && (
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
               {[
                 { text: "Energy is quantized — only discrete values Eₙ are allowed", color: "white" },
@@ -226,18 +312,14 @@ export default function InfiniteWellPage() {
                   padding: "10px 14px",
                   background: "rgba(255,255,255,0.015)",
                   border: `1px solid ${item.color}33`,
-                  borderRadius: 8,
-                  fontSize: 11,
-                  color: "rgba(203,213,225,0.8)",
-                  fontFamily: "monospace",
-                  lineHeight: 1.6,
+                  borderRadius: 8, fontSize: 11,
+                  color: "rgba(203,213,225,0.8)", fontFamily: "monospace", lineHeight: 1.6,
                 }}>
                   <span style={{ color: item.color, marginRight: 6 }}>◆</span>{item.text}
                 </div>
               ))}
             </div>
           )}
-
         </main>
       </div>
     </div>

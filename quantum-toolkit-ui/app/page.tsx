@@ -12,7 +12,6 @@ const SIMULATORS = [
   { href: "/simulator/wave-packet",  label: "Wave Packet",  tag: "Ready",       color: "var(--green)"  },
   { href: "/simulator/time-evolution",    label: "Time Evolution",    tag: "Ready", color: "var(--amber)"  },
   { href: "/simulator/infinite-well", label: "Inifinite Well", tag: "Ready", color: "white" },
-  { href: "/simulator/superposition", label: "Superposition", tag: "Ready", color: "red" },
 ];
 
 
@@ -49,7 +48,7 @@ export default function HomePage() {
           <span className="glow-text" style={{ color: "var(--cyan)" }}>with Python</span>
         </h1>
         <p style={{ fontSize: 16, color: "var(--text-secondary)", maxWidth: 520, margin: "0 auto 40px", lineHeight: 1.75 }}>
-          Interactive 1D quantum simulation — solve the Schrödinger equation, visualise wave functions, and explore tunneling, superposition, and uncertainty in real time.
+          Interactive 1D quantum simulation — solve the Schrödinger equation, visualise wave functions, and explore tunneling, uncertainty in real time.
         </p>
         <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" as const }}>
           <Link href="/simulator/wave-packet" className="btn btn-primary" style={{ textDecoration: "none", fontSize: 13, padding: "12px 28px" }}>
