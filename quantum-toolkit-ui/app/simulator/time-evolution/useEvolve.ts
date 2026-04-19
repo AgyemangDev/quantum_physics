@@ -18,7 +18,7 @@ export function useEvolve() {
     potential:    Potential;
     V0:           number;
     barrier_width: number;
-    amplitude:    number;   // vertical scale — passed straight to backend
+    amplitude:    number;
     tEnd:         number;
   }) => {
     setLoading(true);
@@ -26,22 +26,28 @@ export function useEvolve() {
 
     const halfW = params.barrier_width / 2;
 
-    // Boundary condition selection:
-    //   free  → periodic (wave circulates, zero reflections)
-    //   wall  → dirichlet with high V0 at edges (hard wall reflection)
-    //   others → dirichlet (Crank-Nicolson in a box)
-    const boundary =
-      params.potential === "free" ? "periodic" : "dirichlet";
+    // ── Boundary condition ────────────────────────────────────────────────────
+    // wall     → dirichlet  (ψ = 0 at edges, hard wall reflections)
+    // all else → periodic   (wave exits one edge and re-enters the other;
+    //                        only the explicit potential causes reflections)
+    const boundary: "periodic" | "dirichlet" =
+      params.potential === "wall" ? "dirichlet" : "periodic";
 
-    // For "wall" potential, use a very large V0 to approximate an infinite wall
-    // (hard-coded here so the user-facing V0 slider still controls barrier height
-    //  for the barrier/step cases — wall always means hard wall).
-    const V0 =
-  params.potential === "wall" ? 0 : params.V0;
+    // ── Domain width ──────────────────────────────────────────────────────────
+    // For free particle we use a wider domain so the packet disperses off-screen
+    // during a typical simulation time without wrapping around and interfering
+    // with itself.  Barrier / step / wall stay at the standard ±10 window.
+    const x_min = params.potential === "free" ? -20 : -10;
+    const x_max = params.potential === "free" ?  20 :  10;
 
-    // Barrier edges: for step potential the "left edge" is 0 (step starts at centre)
+    // ── Potential height ──────────────────────────────────────────────────────
+    // For "wall" the backend always uses WALL_V0 = 1e6 at the edges regardless
+    // of what V0 we send, so pass params.V0 unchanged for all cases.
+    const V0 = params.V0;
+
+    // Barrier edges: for step potential the left edge is 0 (step starts at centre)
     const barrier_left  = params.potential === "step" ? 0.0 : -halfW;
-    const barrier_right = params.potential === "step" ? 0.1 :  halfW; // thin step edge
+    const barrier_right = params.potential === "step" ? 0.1 :  halfW;
 
     try {
       const res = await fetch(`${API}/evolve`, {
@@ -49,18 +55,18 @@ export function useEvolve() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           x0:            params.x0,
-          sigma:         params.sigma,   // ← width only, NOT scaled by amplitude
+          sigma:         params.sigma,
           k0:            params.k0,
           potential:     params.potential,
           V0,
           barrier_left,
           barrier_right,
-          amplitude:     params.amplitude, // backend applies this to psi0 peak
+          amplitude:     params.amplitude,
           t_end:         params.tEnd,
           dt:            0.005,
           store_every:   10,
-          x_min:        -10,
-          x_max:         10,
+          x_min,
+          x_max,
           N:             512,
           boundary,
         }),
@@ -90,17 +96,12 @@ export function useAnimation(data: EvolveResponse | null) {
   const [speed,   setSpeed]   = useState<Speed>(1);
 
   const rafRef     = useRef<number | null>(null);
-  // lastTsRef = previous RAF timestamp (ms); 0 means "not yet started"
   const lastTsRef  = useRef<number>(0);
-  // simTimeRef = accumulated simulation time (s)
   const simTimeRef = useRef<number>(0);
-  // frameRef = mutable mirror of frame state so tick() can read it without stale closure
   const frameRef   = useRef<number>(0);
 
-  // Keep frameRef in sync with state
   useEffect(() => { frameRef.current = frame; }, [frame]);
 
-  // Reset when new data arrives
   useEffect(() => {
     setFrame(0);
     setPlaying(false);
@@ -109,29 +110,23 @@ export function useAnimation(data: EvolveResponse | null) {
     frameRef.current   = 0;
   }, [data]);
 
-  // RAF loop — advances simTime by real-time × speed, finds nearest frame
   useEffect(() => {
     if (!playing || !data) return;
 
     const tick = (ts: number) => {
       if (lastTsRef.current === 0) {
-        // First tick after play — initialise clock to current sim position
-        // so seeking before play then playing resumes from the right spot.
         lastTsRef.current = ts;
         simTimeRef.current = data.times[frameRef.current] ?? 0;
       }
 
-      const wallDt = (ts - lastTsRef.current) / 1000; // real seconds
+      const wallDt = (ts - lastTsRef.current) / 1000;
       lastTsRef.current = ts;
       simTimeRef.current += wallDt * speed;
 
-      const t = simTimeRef.current;
-
-      // Find first frame whose time is ≥ accumulated sim time
+      const t    = simTimeRef.current;
       const next = data.times.findIndex(time => time >= t);
 
       if (next === -1 || next >= data.n_frames) {
-        // Past the end
         setFrame(data.n_frames - 1);
         setPlaying(false);
         lastTsRef.current = 0;
@@ -152,10 +147,7 @@ export function useAnimation(data: EvolveResponse | null) {
 
   const togglePlay = useCallback(() => {
     setPlaying(p => {
-      if (!p) {
-        // Reset clock so next tick initialises from current frame position
-        lastTsRef.current = 0;
-      }
+      if (!p) lastTsRef.current = 0;
       return !p;
     });
   }, []);
@@ -183,9 +175,7 @@ export function computeTR(data: EvolveResponse) {
   const x    = data.x;
   const last = data.frames[data.n_frames - 1];
   const dx   = x[1] - x[0];
-  // Transmission: probability to the RIGHT of the barrier centre (x > 0.5)
   const T    = last.prob.reduce((acc, p, i) => x[i] >  0.5 ? acc + p * dx : acc, 0);
-  // Reflection: probability to the LEFT of the barrier centre (x < -0.5)
   const R    = last.prob.reduce((acc, p, i) => x[i] < -0.5 ? acc + p * dx : acc, 0);
   return { T, R };
 }
