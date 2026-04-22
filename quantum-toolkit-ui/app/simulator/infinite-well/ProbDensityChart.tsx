@@ -23,7 +23,6 @@ export default function ProbDensityChart({ data, selectedN, expanded = false }: 
     const width  = wrap.clientWidth  || 500;
     const height = wrap.clientHeight || (expanded ? 480 : 220);
 
-    // Scale relative to base 500 × 220
     const sx = width  / 500;
     const sy = height / 220;
     const s  = Math.min(sx, sy);
@@ -50,9 +49,9 @@ export default function ProbDensityChart({ data, selectedN, expanded = false }: 
     const H = height - pad.t - pad.b;
 
     const fs = {
-      tick:  `${Math.round(7  * s)}px monospace`,
-      label: `${Math.round(9  * s)}px monospace`,
-      axis:  `${Math.round(8  * s)}px monospace`,
+      tick:  `${Math.round(9  * s)}px monospace`,
+      label: `${Math.round(11 * s)}px monospace`,
+      axis:  `${Math.round(10 * s)}px monospace`,
     };
 
     const es    = data.eigenstates[selectedN];
@@ -113,7 +112,7 @@ export default function ProbDensityChart({ data, selectedN, expanded = false }: 
 
     // ── Y axis ticks (expanded only) ──────────────────────────────────────
     if (expanded) {
-      ctx.fillStyle  = "rgba(148,163,184,0.35)";
+      ctx.fillStyle  = "rgba(255,255,255,0.75)";
       ctx.font       = fs.tick;
       ctx.textAlign  = "right";
       const ySteps   = 5;
@@ -133,7 +132,7 @@ export default function ProbDensityChart({ data, selectedN, expanded = false }: 
       }
       // Y axis label
       ctx.save();
-      ctx.fillStyle  = "rgba(148,163,184,0.3)";
+      ctx.fillStyle  = "rgba(255,255,255,0.85)";
       ctx.font       = fs.axis;
       ctx.textAlign  = "center";
       ctx.translate(pad.l - 28 * sx, pad.t + H / 2);
@@ -143,7 +142,7 @@ export default function ProbDensityChart({ data, selectedN, expanded = false }: 
     }
 
     // ── X axis ticks ──────────────────────────────────────────────────────
-    ctx.fillStyle = "rgba(148,163,184,0.45)";
+    ctx.fillStyle = "rgba(255,255,255,0.75)";
     ctx.font      = fs.tick;
     ctx.textAlign = "center";
     [-8, -4, 0, 4, 8].forEach(v => {
@@ -153,7 +152,7 @@ export default function ProbDensityChart({ data, selectedN, expanded = false }: 
     });
 
     // X label
-    ctx.fillStyle = "rgba(148,163,184,0.3)";
+    ctx.fillStyle = "rgba(255,255,255,0.85)";
     ctx.font      = fs.label;
     ctx.fillText("x", pad.l + W / 2, height - pad.b + 24 * sy);
 

@@ -24,15 +24,12 @@ export default function EnergyLevelChart({ data, selectedN, expanded = false }: 
     const wrap = wrapRef.current;
     if (!c || !wrap) return;
 
-    // ── True pixel dimensions from the container ──────────────────────────
     const width  = wrap.clientWidth  || 500;
     const height = wrap.clientHeight || (expanded ? 560 : 320);
 
-    // ── Scale factor drives ALL sizes ─────────────────────────────────────
-    // Base reference is 500 × 320. Everything scales proportionally.
     const sx = width  / 500;
     const sy = height / 320;
-    const s  = Math.min(sx, sy);           // uniform scale, preserve aspect
+    const s  = Math.min(sx, sy);
 
     const DPR = window.devicePixelRatio || 1;
     c.width        = width  * DPR;
@@ -46,7 +43,6 @@ export default function EnergyLevelChart({ data, selectedN, expanded = false }: 
     ctx.fillStyle = "rgba(6,8,16,0.55)";
     ctx.fillRect(0, 0, width, height);
 
-    // ── Scaled padding / font sizes ───────────────────────────────────────
     const pad = {
       t: Math.round(20 * sy),
       b: Math.round(36 * sy),
@@ -57,10 +53,10 @@ export default function EnergyLevelChart({ data, selectedN, expanded = false }: 
     const H = height - pad.t - pad.b;
 
     const fs = {
-      tiny:   `${Math.round(6  * s)}px monospace`,
-      small:  `${Math.round(7  * s)}px monospace`,
-      medium: `${Math.round(8  * s)}px monospace`,
-      label:  `${Math.round(10 * s)}px monospace`,
+      tiny:   `${Math.round(9  * s)}px monospace`,
+      small:  `${Math.round(10 * s)}px monospace`,
+      medium: `${Math.round(11 * s)}px monospace`,
+      label:  `${Math.round(13 * s)}px monospace`,
     };
 
     const maxE  = Math.max(...data.energies) * 1.4;
@@ -145,7 +141,6 @@ export default function EnergyLevelChart({ data, selectedN, expanded = false }: 
       const isSelected = idx === selectedN;
       const ey         = eyPx[idx];
 
-      // Energy level line
       const lineLeft  = Math.max(pad.l, pxWallLeft);
       const lineRight = Math.min(pad.l + W, pxWallRight);
       ctx.strokeStyle = isSelected ? color : color + "55";
@@ -157,18 +152,15 @@ export default function EnergyLevelChart({ data, selectedN, expanded = false }: 
       ctx.stroke();
       ctx.setLineDash([]);
 
-      // Eₙ label
-      ctx.fillStyle = isSelected ? color : "rgba(255,255,255,0.45)";
+      ctx.fillStyle = isSelected ? color : "rgba(255,255,255,0.65)";
       ctx.font      = isSelected ? `bold ${fs.medium}` : fs.small;
       ctx.textAlign = "right";
       ctx.fillText(`E${idx + 1}`, pad.l - 4 * sx, ey + 3 * sy);
 
-      // Numerical value
-      ctx.fillStyle = isSelected ? color + "cc" : "rgba(255,255,255,0.22)";
+      ctx.fillStyle = isSelected ? color + "cc" : "rgba(255,255,255,0.45)";
       ctx.font      = fs.tiny;
       ctx.fillText(es.energy.toFixed(2), pad.l - 4 * sx, ey + 10 * sy);
 
-      // Wavefunction
       const psiMax = Math.max(...es.real.map(Math.abs)) || 1;
 
       const drawWave = (lw: number, style: string, blur = 0) => {
@@ -202,7 +194,7 @@ export default function EnergyLevelChart({ data, selectedN, expanded = false }: 
 
     // ── Y axis energy values ──────────────────────────────────────────────
     ctx.setLineDash([]);
-    ctx.fillStyle = "rgba(148,163,184,0.35)";
+    ctx.fillStyle = "rgba(255,255,255,0.75)";
     ctx.font      = fs.tiny;
     ctx.textAlign = "right";
     data.energies.forEach((e, idx) => {
@@ -213,7 +205,7 @@ export default function EnergyLevelChart({ data, selectedN, expanded = false }: 
     });
 
     // ── X axis ticks ──────────────────────────────────────────────────────
-    ctx.fillStyle = "rgba(148,163,184,0.5)";
+    ctx.fillStyle = "rgba(255,255,255,0.85)";
     ctx.font      = fs.small;
     ctx.textAlign = "center";
     [-6, -4, -2, 0, 2, 4, 6].forEach(v => {
@@ -221,12 +213,13 @@ export default function EnergyLevelChart({ data, selectedN, expanded = false }: 
       if (xp < pad.l - 1 || xp > pad.l + W + 1) return;
       ctx.fillText(String(v), xp, height - pad.b + 14 * sy);
     });
-    ctx.fillStyle = "rgba(148,163,184,0.3)";
+    ctx.fillStyle = "rgba(255,255,255,0.85)";
+    ctx.font      = fs.label;
     ctx.fillText("x", pad.l + W / 2, height - pad.b + 24 * sy);
 
     // ── Y axis label ──────────────────────────────────────────────────────
     ctx.save();
-    ctx.fillStyle = "rgba(148,163,184,0.3)";
+    ctx.fillStyle = "rgba(255,255,255,0.85)";
     ctx.font      = fs.small;
     ctx.textAlign = "center";
     ctx.translate(10 * sx, pad.t + H / 2);

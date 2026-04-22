@@ -28,21 +28,23 @@ export function useEvolve() {
 
     // ── Boundary condition ────────────────────────────────────────────────────
     // wall     → dirichlet  (ψ = 0 at edges, hard wall reflections)
-    // all else → periodic   (wave exits one edge and re-enters the other;
-    //                        only the explicit potential causes reflections)
-    const boundary: "periodic" | "dirichlet" =
-      params.potential === "wall" ? "dirichlet" : "periodic";
+    // barrier  → absorbing  (CAP at edges: wave smoothly disappears, no wrap-around)
+    // step     → absorbing  (CAP at edges: wave smoothly disappears, no wrap-around)
+    // free     → periodic   (ring domain; wave circulates, no edges)
+    const boundary: "periodic" | "absorbing" | "dirichlet" =
+      params.potential === "wall"    ? "dirichlet" :
+      params.potential === "free"    ? "periodic"  :
+      "absorbing";
 
     // ── Domain width ──────────────────────────────────────────────────────────
-    // For free particle we use a wider domain so the packet disperses off-screen
-    // during a typical simulation time without wrapping around and interfering
-    // with itself.  Barrier / step / wall stay at the standard ±10 window.
-    const x_min = params.potential === "free" ? -20 : -10;
-    const x_max = params.potential === "free" ?  20 :  10;
+    // free:           ±20 — wide so the packet disperses off-screen before wrapping
+    // barrier / step: ±15 — wider than ±10 so the 20% CAP layer (±3 on each side)
+    //                       sits well outside the region of interest (±7), giving
+    //                       the reflected wave room to be absorbed cleanly
+    // wall:           ±10 — standard; hard walls are at the edges anyway
+    const x_min = params.potential === "free" ? -20 : params.potential === "wall" ? -10 : -15;
+    const x_max = params.potential === "free" ?  20 : params.potential === "wall" ?  10 :  15;
 
-    // ── Potential height ──────────────────────────────────────────────────────
-    // For "wall" the backend always uses WALL_V0 = 1e6 at the edges regardless
-    // of what V0 we send, so pass params.V0 unchanged for all cases.
     const V0 = params.V0;
 
     // Barrier edges: for step potential the left edge is 0 (step starts at centre)

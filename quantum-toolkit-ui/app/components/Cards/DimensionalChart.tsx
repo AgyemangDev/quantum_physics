@@ -30,8 +30,8 @@ export function ProbChart({ data, x0, sigma }: {
     >
       <ResponsiveContainer width="100%" height={170}>
         <LineChart data={data}>
-          <XAxis dataKey="x" stroke="white" tick={{ fontSize: 9 }} />
-          <YAxis stroke="white" tick={{ fontSize: 9 }} width={36} />
+          <XAxis dataKey="x" stroke="white" tick={{ fontSize: 12, fill: "white" }} />
+          <YAxis stroke="white" tick={{ fontSize: 12, fill: "white" }} width={36} />
           <Tooltip contentStyle={tooltipStyle} formatter={fmt} />
           <ReferenceLine x={x0} stroke="rgba(0,229,255,0.3)" strokeDasharray="3 3" />
           <Line type="monotone" dataKey="prob" stroke="var(--cyan)" dot={false} strokeWidth={2} name="|ψ|²" />
@@ -59,8 +59,8 @@ export function EnvelopeChart({ data, x0, sigma }: {
     >
       <ResponsiveContainer width="100%" height={170}>
         <LineChart data={data}>
-          <XAxis dataKey="x" stroke="white" tick={{ fontSize: 9 }} />
-          <YAxis stroke="white" tick={{ fontSize: 9 }} width={36} />
+          <XAxis dataKey="x" stroke="white" tick={{ fontSize: 12, fill: "white" }} />
+          <YAxis stroke="white" tick={{ fontSize: 12, fill: "white" }} width={36} />
           <Tooltip contentStyle={tooltipStyle} formatter={fmt} />
           <ReferenceLine x={x0} stroke="rgba(0,255,136,0.3)" strokeDasharray="3 3" />
           <Line type="monotone" dataKey="env" stroke="var(--green)" dot={false} strokeWidth={2} name="|ψ|" />
@@ -106,7 +106,6 @@ function Surface3D({ x0, k0, sigma }: { x0: number; k0: number; sigma: number })
       const RANGE = 12;
       const N     = 400;
       const sig   = Math.max(sigma, 0.3);
-      // ω = k₀²/2  (free particle dispersion, ℏ=m=1)
       const omega = (k0 * k0) / 2;
 
       const mkAxis = (
@@ -126,7 +125,6 @@ function Surface3D({ x0, k0, sigma }: { x0: number; k0: number; sigma: number })
       mkAxis([0, -RANGE * 0.5, 0], [0, RANGE * 0.5, 0], 0xffffff);
       mkAxis([0, 0, -RANGE], [0, 0, RANGE], 0xffffff);
 
-      // Pre-build position arrays — update in-place each frame
       const rePositions = new Float32Array(N * 3);
       const imPositions = new Float32Array(N * 3);
 
@@ -145,7 +143,7 @@ function Surface3D({ x0, k0, sigma }: { x0: number; k0: number; sigma: number })
           const xi  = -RANGE + (2 * RANGE * i) / (N - 1);
           const dx  = xi - x0;
           const A   = Math.exp(-(dx * dx) / (4 * sig * sig));
-          const phi = k0 * xi - omega * t;          // phase evolves with time
+          const phi = k0 * xi - omega * t;
           const re  = A * Math.cos(phi) * 4.5;
           const im  = A * Math.sin(phi) * 4.5;
 
@@ -167,31 +165,29 @@ function Surface3D({ x0, k0, sigma }: { x0: number; k0: number; sigma: number })
       };
       el.addEventListener("wheel", onWheel, { passive: false });
 
-const animate = (ts: number) => {
-  if (!animating) return;
+      const animate = (ts: number) => {
+        if (!animating) return;
 
-  if (lastTsRef.current !== 0) {
-    const dt = (ts - lastTsRef.current) / 1000;
-    if (timeRef.current < ANIM_DURATION) {
-      timeRef.current = Math.min(timeRef.current + dt, ANIM_DURATION);
-      updateWaves(timeRef.current);
-    }
-    // Camera always rotates (cheap, looks alive)
-    angleRef.current += 0.004;
-    const r = radiusRef.current;
-    camera.position.set(
-      Math.sin(angleRef.current) * r,
-      r * 0.46,
-      Math.cos(angleRef.current) * r,
-    );
-    camera.lookAt(0, 1, 0);
-    renderer.render(scene, camera);
-  }
-  lastTsRef.current = ts;
+        if (lastTsRef.current !== 0) {
+          const dt = (ts - lastTsRef.current) / 1000;
+          if (timeRef.current < ANIM_DURATION) {
+            timeRef.current = Math.min(timeRef.current + dt, ANIM_DURATION);
+            updateWaves(timeRef.current);
+          }
+          angleRef.current += 0.004;
+          const r = radiusRef.current;
+          camera.position.set(
+            Math.sin(angleRef.current) * r,
+            r * 0.46,
+            Math.cos(angleRef.current) * r,
+          );
+          camera.lookAt(0, 1, 0);
+          renderer.render(scene, camera);
+        }
+        lastTsRef.current = ts;
 
-  // Only keep the loop alive — camera still needs to rotate
-  frameRef.current = requestAnimationFrame(animate);
-};
+        frameRef.current = requestAnimationFrame(animate);
+      };
 
       frameRef.current = requestAnimationFrame(animate);
       rendererRef.current = { renderer, el, onWheel };
@@ -226,6 +222,7 @@ const animate = (ts: number) => {
     </div>
   );
 }
+
 // ── Chart 3 — Re(ψ) and Im(ψ) with 1D / 3D surface toggle ───────────────────
 
 export function ReImChart({ data, x0, k0, sigma }: {
@@ -273,15 +270,13 @@ export function ReImChart({ data, x0, k0, sigma }: {
       {mode === "1D" ? (
         <ResponsiveContainer width="100%" height={170}>
           <LineChart data={data}>
-            <XAxis dataKey="x" stroke="white" tick={{ fontSize: 9 }} />
-            <YAxis stroke="white" tick={{ fontSize: 9 }} width={36} />
+            <XAxis dataKey="x" stroke="white" tick={{ fontSize: 12, fill: "white" }} />
+            <YAxis stroke="white" tick={{ fontSize: 12, fill: "white" }} width={36} />
             <Tooltip contentStyle={tooltipStyle} formatter={fmt} />
             <ReferenceLine y={0} stroke="rgba(255,255,255,0.1)" />
             <Legend wrapperStyle={{ fontSize: 10, fontFamily: "'Space Mono', monospace" }} />
-            {/* Envelope — drawn first so it sits behind the oscillations */}
             <Line type="monotone" dataKey="env"  stroke="var(--green)" dot={false} strokeWidth={1.5} strokeDasharray="4 2" name="|ψ| envelope" />
             <Line type="monotone" dataKey="envN" stroke="var(--green)" dot={false} strokeWidth={1.5} strokeDasharray="4 2" name="-|ψ| envelope" legendType="none" />
-            {/* Oscillations */}
             <Line type="monotone" dataKey="re" stroke="var(--violet)" dot={false} strokeWidth={1.5} name="Re(ψ)" />
             <Line type="monotone" dataKey="im" stroke="var(--amber)"  dot={false} strokeWidth={1.5} name="Im(ψ)" />
           </LineChart>
@@ -311,9 +306,9 @@ export function MomentumChart({ data, k0, sigma }: {
     >
       <ResponsiveContainer width="100%" height={170}>
         <LineChart data={data}>
-          <XAxis dataKey="x" stroke="white" tick={{ fontSize: 9 }}
-            label={{ value: "k", position: "insideBottomRight", offset: -4, fill: "white", fontSize: 9 }} />
-          <YAxis stroke="white" tick={{ fontSize: 9 }} width={36} />
+          <XAxis dataKey="x" stroke="white" tick={{ fontSize: 12, fill: "white" }}
+            label={{ value: "k", position: "insideBottomRight", offset: -4, fill: "white", fontSize: 14 }} />
+          <YAxis stroke="white" tick={{ fontSize: 12, fill: "white" }} width={36} />
           <Tooltip contentStyle={tooltipStyle} formatter={fmt} />
           <ReferenceLine x={k0} stroke="rgba(139,92,246,0.4)" strokeDasharray="3 3" />
           <Line type="monotone" dataKey="prob_k" stroke="var(--violet)" dot={false} strokeWidth={2} name="|ψ̃|²" />

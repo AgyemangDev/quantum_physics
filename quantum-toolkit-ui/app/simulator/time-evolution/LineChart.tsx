@@ -29,7 +29,6 @@ export default function LineChart({
     const width  = wrap.clientWidth  || 420;
     const height = wrap.clientHeight || (expanded ? 420 : 190);
 
-    // Scale relative to base 420 × 190
     const sx = width  / 420;
     const sy = height / 190;
     const s  = Math.min(sx, sy);
@@ -56,9 +55,9 @@ export default function LineChart({
     const H = height - pad.t - pad.b;
 
     const fs = {
-      tiny:  `${Math.round(7  * s)}px monospace`,
-      small: `${Math.round(8  * s)}px monospace`,
-      med:   `${Math.round(9  * s)}px monospace`,
+      tiny:  `${Math.round(9  * s)}px monospace`,
+      small: `${Math.round(10 * s)}px monospace`,
+      med:   `${Math.round(11 * s)}px monospace`,
     };
 
     const allY   = [...y, ...(y2 ?? [])];
@@ -74,7 +73,7 @@ export default function LineChart({
 
     // ── Y-axis label ──────────────────────────────────────────────────────
     ctx.save();
-    ctx.fillStyle = "rgba(148,163,184,0.35)";
+    ctx.fillStyle = "rgba(255,255,255,0.85)";
     ctx.font      = fs.small;
     ctx.textAlign = "center";
     ctx.translate(expanded ? pad.l - 22 * sx : pad.l - 2, pad.t + H / 2);
@@ -83,13 +82,13 @@ export default function LineChart({
     ctx.restore();
 
     // ── X-axis label ──────────────────────────────────────────────────────
-    ctx.fillStyle = "rgba(148,163,184,0.35)";
+    ctx.fillStyle = "rgba(255,255,255,0.85)";
     ctx.font      = fs.med;
     ctx.textAlign = "center";
     ctx.fillText("x", pad.l + W / 2, height - pad.b + 22 * sy);
 
     // ── Y-axis tick values ────────────────────────────────────────────────
-    ctx.fillStyle = "rgba(148,163,184,0.3)";
+    ctx.fillStyle = "rgba(255,255,255,0.75)";
     ctx.font      = fs.tiny;
     ctx.textAlign = "right";
     const yTicks = expanded ? 5 : 3;
@@ -181,7 +180,7 @@ export default function LineChart({
     }
 
     // ── X-axis tick labels ────────────────────────────────────────────────
-    ctx.fillStyle = "rgba(148,163,184,0.45)";
+    ctx.fillStyle = "rgba(255,255,255,0.75)";
     ctx.font      = fs.small;
     ctx.textAlign = "center";
     [-8, -4, 0, 4, 8].forEach(v => {
