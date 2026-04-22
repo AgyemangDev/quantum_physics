@@ -14,6 +14,13 @@ TDSE : Time-Dependent Schrödinger Equation    →  iℏ ∂ψ/∂t = Ĥψ
        Returns the wave function at each time step.
 
 Units: natural units (ℏ = 1, m = 1) unless otherwise specified.
+
+Boundary-condition contract (set by the frontend, passed via main.py)
+----------------------------------------------------------------------
+free    → periodic    wave circulates on a ring; V = 0; wider domain ±20
+barrier → absorbing   CAP at both edges; wave is damped to zero; no wrap-around
+step    → absorbing   CAP at both edges; wave is damped to zero; no wrap-around
+wall    → dirichlet   ψ = 0 at edges; hard wall; full reflection
 """
 
 import numpy as np
@@ -108,7 +115,61 @@ def analytical_infinite_well_energies(n_max: int, L: float,
 
 
 # ---------------------------------------------------------------------------
-# TDSE solver — Crank-Nicolson method
+# Complex Absorbing Potential (CAP) — absorbing boundary layer
+# ---------------------------------------------------------------------------
+
+def _build_cap(x: np.ndarray,
+               cap_x_inner: float = 10.0,
+               cap_strength: float = 20.0) -> np.ndarray:
+    """
+    Build a Complex Absorbing Potential (CAP) layer at both domain edges.
+
+    The CAP begins at x = ±cap_x_inner and ramps up quadratically to the
+    domain boundary.  cap_x_inner should be set to the edge of the *visible*
+    plot window so that all absorption happens in the invisible buffer zone —
+    the wave simply vanishes off-screen rather than appearing to reflect.
+
+    Physics
+    -------
+    The modified Hamiltonian becomes H' = H - i·W(x), where W(x) ≥ 0.
+    In the absorbing region the norm decays as e^{-W·t/hbar}, smoothly
+    removing probability from the domain.  The quadratic ramp minimises
+    reflection from the CAP onset.
+
+    Parameters
+    ----------
+    x            : np.ndarray — uniform spatial grid, shape (N,)
+    cap_x_inner  : float      — |x| where the CAP begins; set to the visible
+                                plot half-width (default 10.0).
+    cap_strength : float      — peak CAP strength at the domain boundary.
+
+    Returns
+    -------
+    W : np.ndarray, shape (N,), real — absorbing potential W(x) >= 0.
+    """
+    W = np.zeros_like(x, dtype=float)
+
+    # Left absorbing layer: x in [x[0], -cap_x_inner]
+    # s = 0 at the onset (x = -cap_x_inner), s = 1 at the domain edge (x[0])
+    cap_width_left = (-cap_x_inner) - x[0]
+    if cap_width_left > 0:
+        left_mask = x < -cap_x_inner
+        s_left = ((-cap_x_inner) - x[left_mask]) / cap_width_left
+        W[left_mask] = cap_strength * s_left ** 2
+
+    # Right absorbing layer: x in [cap_x_inner, x[-1]]
+    # s = 0 at the onset (x = cap_x_inner), s = 1 at the domain edge (x[-1])
+    cap_width_right = x[-1] - cap_x_inner
+    if cap_width_right > 0:
+        right_mask = x > cap_x_inner
+        s_right = (x[right_mask] - cap_x_inner) / cap_width_right
+        W[right_mask] = cap_strength * s_right ** 2
+
+    return W
+
+
+# ---------------------------------------------------------------------------
+# Hamiltonian builders
 # ---------------------------------------------------------------------------
 
 def _build_periodic_hamiltonian(x: np.ndarray, V: np.ndarray,
@@ -122,24 +183,13 @@ def _build_periodic_hamiltonian(x: np.ndarray, V: np.ndarray,
     This makes the domain a ring — a particle exiting the right edge
     re-enters from the left with no reflection.
 
-    Parameters
-    ----------
-    x    : np.ndarray — uniform spatial grid, shape (N,)
-    V    : np.ndarray — potential on the grid, shape (N,)
-    hbar : float
-    mass : float
-
-    Returns
-    -------
-    H : scipy.sparse.csr_matrix, shape (N, N), complex
+    Used for: free potential only.
     """
     N  = len(x)
     dx = x[1] - x[0]
 
-    # Kinetic energy prefactor: -ℏ²/(2m Δx²)
     coeff = -(hbar ** 2) / (2.0 * mass * dx ** 2)
 
-    # Tridiagonal kinetic matrix
     diag      = np.full(N, -2.0 * coeff, dtype=complex)
     off_diag  = np.full(N - 1, coeff, dtype=complex)
 
@@ -153,11 +203,55 @@ def _build_periodic_hamiltonian(x: np.ndarray, V: np.ndarray,
     H[0, N - 1] = coeff
     H[N - 1, 0] = coeff
 
-    # Add potential energy on the diagonal
     H += scipy.sparse.diags(V.astype(complex), 0, format="lil")
 
     return H.tocsr()
 
+
+def _build_absorbing_hamiltonian(x: np.ndarray, V: np.ndarray,
+                                   hbar: float = 1.0, mass: float = 1.0,
+                                   cap_x_inner: float = 10.0,
+                                   cap_strength: float = 20.0
+                                   ) -> scipy.sparse.csr_matrix:
+    """
+    Build a Hamiltonian with Complex Absorbing Potential (CAP) boundaries.
+
+    Uses standard (non-periodic) finite differences for the kinetic energy,
+    so there is no wrap-around.  The CAP layer at each edge smoothly damps
+    the wave to zero without reflecting it back into the domain.
+
+    The effective potential is:
+        V_eff(x) = V(x) - i·W(x)
+
+    where W(x) is the real, non-negative CAP profile built by _build_cap().
+
+    Used for: barrier and step potentials.
+    """
+    N  = len(x)
+    dx = x[1] - x[0]
+
+    coeff    = -(hbar ** 2) / (2.0 * mass * dx ** 2)
+    diag     = np.full(N, -2.0 * coeff, dtype=complex)
+    off_diag = np.full(N - 1, coeff, dtype=complex)
+
+    H = (
+        scipy.sparse.diags(diag,     0, format="lil") +
+        scipy.sparse.diags(off_diag, 1, format="lil") +
+        scipy.sparse.diags(off_diag,-1, format="lil")
+    )
+
+    # Build complex effective potential: V_real - i*W
+    W     = _build_cap(x, cap_x_inner=cap_x_inner, cap_strength=cap_strength)
+    V_eff = V.astype(complex) - 1j * W
+
+    H += scipy.sparse.diags(V_eff, 0, format="lil")
+
+    return H.tocsr()
+
+
+# ---------------------------------------------------------------------------
+# Crank-Nicolson time step
+# ---------------------------------------------------------------------------
 
 def crank_nicolson_step(psi: np.ndarray, H_sparse: scipy.sparse.csr_matrix,
                          dt: float, hbar: float = 1.0) -> np.ndarray:
@@ -180,13 +274,12 @@ def crank_nicolson_step(psi: np.ndarray, H_sparse: scipy.sparse.csr_matrix,
     ----------
     - Unconditionally stable (no CFL condition on Δt)
     - Second-order accurate in time: O(Δt²)
-    - Unitary: preserves norm ||ψ|| = 1 exactly (up to floating point)
-    - Time-reversible: A and B are conjugates of each other
+    - Unitary for real H: preserves norm ||ψ|| = 1 exactly (up to floating point)
+    - With CAP (complex H): norm decreases as probability is absorbed — correct physics
 
-    NOTE: This function intentionally does NOT renormalize ψ after each step.
-    Crank-Nicolson is unitary and analytically conserves norm. Renormalizing
-    here would destroy any visual amplitude scaling applied by the caller.
-    Drift correction (if needed) is handled every N steps in evolve().
+    NOTE: With absorbing BCs the norm is intentionally NOT conserved —
+    probability is removed as the wave enters the CAP region.
+    renorm_every is therefore ignored for absorbing boundaries.
 
     Parameters
     ----------
@@ -208,30 +301,20 @@ def crank_nicolson_step(psi: np.ndarray, H_sparse: scipy.sparse.csr_matrix,
 
     rhs = B @ psi
     psi_next = scipy.sparse.linalg.spsolve(A, rhs)
-
-    # ── NO renormalization here ──────────────────────────────────────────────
-    # The old code renormalized psi to unit norm at every step. This caused
-    # the visual amplitude to be identical in every stored frame: the wave
-    # packet appeared tall at t=0 (Gaussian peak) then visually shrank as it
-    # spread out — not because the physics changed, but because each frame's
-    # raw arrays were on a unit-norm scale and the peak naturally flattens as
-    # the packet disperses.
-    #
-    # Crank-Nicolson is unitary, so the norm drifts only due to floating-point
-    # rounding (~1e-14 per step). We correct that drift in evolve() every 100
-    # steps instead, which is sufficient for accuracy without destroying the
-    # amplitude structure that the caller (main.py) scales at the end.
-    # ────────────────────────────────────────────────────────────────────────
-
     return psi_next
 
+
+# ---------------------------------------------------------------------------
+# Main time propagator
+# ---------------------------------------------------------------------------
 
 def evolve(psi0: np.ndarray, x: np.ndarray, V: np.ndarray,
            t_end: float, dt: float,
            hbar: float = 1.0, mass: float = 1.0,
            store_every: int = 1,
            boundary: str = "dirichlet",
-           renorm_every: int = 100):
+           renorm_every: int = 100,
+           cap_x_inner: float = 10.0):
     """
     Propagate ψ from t=0 to t=t_end using the Crank-Nicolson method.
 
@@ -245,12 +328,12 @@ def evolve(psi0: np.ndarray, x: np.ndarray, V: np.ndarray,
     hbar         : float
     mass         : float
     store_every  : int                 — store snapshot every n steps
-    boundary     : str                 — "dirichlet" (ψ=0 at walls, default)
-                                         or "periodic" (wrap-around, free particle)
-    renorm_every : int                 — correct floating-point norm drift every n
-                                         steps (default 100). Set to 0 to disable.
-                                         This is a numerical hygiene step only and
-                                         does not affect the physics.
+    boundary     : str                 — "periodic"  (free — transparent ring domain)
+                                         "absorbing" (barrier/step — CAP, wave disappears at edges)
+                                         "dirichlet" (wall — ψ=0 at boundaries, hard reflection)
+    renorm_every : int                 — correct floating-point norm drift every n steps.
+                                         Only applied for periodic/dirichlet BCs.
+                                         Ignored for absorbing BCs (norm decay is physical).
 
     Returns
     -------
@@ -259,32 +342,37 @@ def evolve(psi0: np.ndarray, x: np.ndarray, V: np.ndarray,
 
     Notes
     -----
-    Dirichlet BCs: ψ(x_min) = ψ(x_max) = 0.
-        The domain acts as an infinite square well. Any wave reaching
-        the edge reflects back. Use for barrier / step / harmonic potentials.
+    Periodic BCs (free only)
+        Domain is a ring. A wave exiting one edge re-enters from the other
+        with no reflection. Suitable for observing free dispersion.
 
-    Periodic BCs: ψ(x_min) = ψ(x_max), domain is a ring.
-        A wave exiting the right boundary re-enters from the left with
-        no reflection. Use for free-particle evolution so the packet
-        circulates indefinitely without artificial wall reflections.
+    Absorbing BCs (barrier / step)
+        A Complex Absorbing Potential (CAP) layer occupies the outer 15 % of
+        the domain on each side. The wave is smoothly damped to zero as it
+        enters this region — it neither reflects nor wraps around.
+        The norm decreases as probability is absorbed; this is physical and
+        correct. renorm_every is ignored.
 
-    Norm conservation:
-        We do NOT renormalize at every step (that would erase amplitude
-        structure). Instead we correct accumulated floating-point drift
-        every `renorm_every` steps. The correction factor is always
-        extremely close to 1.0, so it has negligible effect on the shapes
-        but keeps the simulation numerically stable over long runs.
+    Dirichlet BCs (wall only)
+        ψ = 0 enforced at both grid endpoints. Combined with the thick high-V
+        layer built by build_potential(), the wave reflects fully from both
+        edges and forms standing-wave interference patterns.
+
+    Norm conservation
+        Periodic/Dirichlet: renormalize every `renorm_every` steps to correct
+        accumulated floating-point drift (correction ≈ 1e-12 per 100 steps).
+        Absorbing: no renormalization — norm decay is real absorbed probability.
     """
     if boundary == "periodic":
         H = _build_periodic_hamiltonian(x, V, hbar=hbar, mass=mass)
+    elif boundary == "absorbing":
+        H = _build_absorbing_hamiltonian(x, V, hbar=hbar, mass=mass,
+                                          cap_x_inner=cap_x_inner)
     else:
+        # dirichlet
         H = hamiltonian_sparse(x, V, hbar=hbar, mass=mass)
 
     psi = psi0.astype(complex).copy()
-
-    # Record the initial norm so we can restore it after drift corrections.
-    # main.py normalises psi0 to 1 before calling us, so this will be 1.0,
-    # but we read it explicitly to be safe.
     initial_norm = np.sqrt(np.sum(np.abs(psi) ** 2))
 
     snapshots = [psi.copy()]
@@ -295,10 +383,9 @@ def evolve(psi0: np.ndarray, x: np.ndarray, V: np.ndarray,
     for step in range(1, n_steps + 1):
         psi = crank_nicolson_step(psi, H, dt, hbar=hbar)
 
-        # Periodic drift correction — restores norm to its initial value
-        # without changing the shape of ψ.  This is purely a floating-point
-        # hygiene measure; the correction is ~1e-12 per 100 steps.
-        if renorm_every > 0 and step % renorm_every == 0:
+        # For periodic/dirichlet BCs only: correct floating-point drift.
+        # For absorbing BCs norm decay is physical — do NOT renormalize.
+        if boundary != "absorbing" and renorm_every > 0 and step % renorm_every == 0:
             current_norm = np.sqrt(np.sum(np.abs(psi) ** 2))
             if current_norm > 1e-15:
                 psi = psi * (initial_norm / current_norm)
@@ -318,17 +405,8 @@ def norm(psi: np.ndarray, x: np.ndarray) -> float:
     """
     Compute ∫|ψ(x)|² dx.
 
-    Should remain ≈ 1.0 throughout time evolution.
-    Significant deviation indicates numerical instability.
-
-    Parameters
-    ----------
-    psi : np.ndarray (complex)
-    x   : np.ndarray
-
-    Returns
-    -------
-    norm_value : float
+    Should remain ≈ 1.0 throughout time evolution for periodic/dirichlet BCs.
+    For absorbing BCs, decreases as probability is absorbed — this is correct.
     """
     return float(np.trapezoid(np.abs(psi) ** 2, x))
 
@@ -339,15 +417,6 @@ def energy_expectation(psi: np.ndarray, H_sparse: scipy.sparse.csr_matrix) -> fl
 
     For a stationary state ψₙ, this returns exactly Eₙ.
     For a superposition, it returns the weighted average of energies.
-
-    Parameters
-    ----------
-    psi      : np.ndarray (complex)
-    H_sparse : scipy.sparse.csr_matrix
-
-    Returns
-    -------
-    E : float — energy expectation value
     """
     return float(np.real(np.conj(psi) @ (H_sparse @ psi)))
 
@@ -358,16 +427,6 @@ def transmission_coefficient(psi: np.ndarray, x: np.ndarray,
     Estimate the transmission probability T = P(x > x_barrier_right).
 
     T = ∫_{x_barrier_right}^{∞} |ψ(x)|² dx
-
-    Parameters
-    ----------
-    psi              : np.ndarray (complex)
-    x                : np.ndarray
-    x_barrier_right  : float — right edge of the barrier
-
-    Returns
-    -------
-    T : float in [0, 1]
     """
     mask = x > x_barrier_right
     dx = x[1] - x[0]
@@ -382,16 +441,6 @@ def reflection_coefficient(psi: np.ndarray, x: np.ndarray,
     R = ∫_{-∞}^{x_barrier_left} |ψ(x)|² dx
 
     For a physical system: T + R ≈ 1 (conservation of probability).
-
-    Parameters
-    ----------
-    psi             : np.ndarray (complex)
-    x               : np.ndarray
-    x_barrier_left  : float — left edge of the barrier
-
-    Returns
-    -------
-    R : float in [0, 1]
     """
     mask = x < x_barrier_left
     dx = x[1] - x[0]
@@ -404,22 +453,6 @@ def validate_tise(energies_numerical: np.ndarray, L: float,
     Validate TISE numerical results against analytical infinite well energies.
 
     Computes relative error between numerical and analytical energy levels.
-    Useful for checking grid resolution and numerical accuracy.
-
-    Parameters
-    ----------
-    energies_numerical : np.ndarray — energies from solve_tise()
-    L                  : float      — well width
-    hbar               : float
-    mass               : float
-
-    Returns
-    -------
-    dict with keys:
-        analytical      : np.ndarray — analytical energy levels
-        numerical       : np.ndarray — numerical energy levels
-        relative_errors : np.ndarray — |E_num - E_ana| / E_ana
-        max_error       : float      — maximum relative error
     """
     n = len(energies_numerical)
     E_ana = analytical_infinite_well_energies(n, L, hbar=hbar, mass=mass)
@@ -440,19 +473,6 @@ def validate_tise(energies_numerical: np.ndarray, L: float,
 def snapshots_to_dict(snapshots: list, times: list, x: np.ndarray) -> dict:
     """
     Serialize time evolution snapshots for the FastAPI response.
-
-    Parameters
-    ----------
-    snapshots : list of np.ndarray (complex)
-    times     : list of float
-    x         : np.ndarray
-
-    Returns
-    -------
-    dict with keys:
-        x         : list[float]
-        times     : list[float]
-        frames    : list of dict — each frame has real, imag, prob
     """
     frames = []
     for psi in snapshots:
@@ -473,21 +493,6 @@ def tise_to_dict(x: np.ndarray, energies: np.ndarray,
                   wavefunctions: np.ndarray, V: np.ndarray) -> dict:
     """
     Serialize TISE results for the FastAPI response.
-
-    Parameters
-    ----------
-    x             : np.ndarray
-    energies      : np.ndarray, shape (n_states,)
-    wavefunctions : np.ndarray, shape (N, n_states)
-    V             : np.ndarray — potential
-
-    Returns
-    -------
-    dict with keys:
-        x           : list[float]
-        V           : list[float]
-        energies    : list[float]
-        eigenstates : list of dict — each has real, imag, prob, n, energy
     """
     n_states = len(energies)
     eigenstates = []
@@ -503,8 +508,8 @@ def tise_to_dict(x: np.ndarray, energies: np.ndarray,
         })
 
     return {
-        "x":          x.tolist(),
-        "V":          V.tolist(),
-        "energies":   energies.tolist(),
+        "x":           x.tolist(),
+        "V":           V.tolist(),
+        "energies":    energies.tolist(),
         "eigenstates": eigenstates,
     }

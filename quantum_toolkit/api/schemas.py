@@ -2,6 +2,16 @@
 schemas.py
 ----------
 Pydantic models for FastAPI request and response validation.
+
+Boundary-condition contract
+---------------------------
+The frontend decides the correct boundary condition based on potential type
+and sends it as the `boundary` field of EvolveRequest:
+
+    free    → "periodic"   wider domain ±20 so packet disperses off-screen
+    barrier → "periodic"   transparent edges; only the barrier reflects
+    step    → "periodic"   transparent edges; only the step reflects
+    wall    → "dirichlet"  hard walls; full reflection; standing waves
 """
 
 from pydantic import BaseModel, Field
@@ -39,14 +49,10 @@ class WavePacketResponse(BaseModel):
 # ---------------------------------------------------------------------------
 
 class EvolveRequest(BaseModel):
-    x0:    float = Field(default=0.0,  ge=-10.0, le=10.0, description="Centre initial du paquet")
-    # sigma is the spatial WIDTH only.  It is NOT scaled by amplitude here.
-    # The old code sent sigma*amplitude to the backend which conflated two
-    # independent physical parameters.  Amplitude is now a separate field.
+    x0:    float = Field(default=0.0,  ge=-20.0, le=20.0, description="Centre initial du paquet")
     sigma: float = Field(default=1.0,  ge=0.2,   le=3.0,  description="Largeur spatiale (sigma)")
     k0:    float = Field(default=3.0,  ge=-8.0,  le=8.0,  description="Vecteur d'onde initial")
 
-    # Potential type — "harmonic" has been removed.
     potential: Literal["free", "barrier", "step", "wall"] = Field(
         default="free",
         description="'free' | 'barrier' | 'step' | 'wall'",
@@ -55,26 +61,35 @@ class EvolveRequest(BaseModel):
     barrier_left:  float = Field(default=-0.5, description="Bord gauche de la barrière")
     barrier_right: float = Field(default=0.5,  description="Bord droit de la barrière")
 
-    # Amplitude: vertical scale applied to psi0 AFTER normalisation.
-    # Crank-Nicolson is linear → amplitude is preserved in all output frames.
-    # Range 0.1 – 5.0 is intentionally generous (no physics constraint here).
-    amplitude: float = Field(default=1.0, ge=0.1, le=5.0, description="Amplitude verticale de psi0")
+    amplitude: float = Field(
+        default=1.0, ge=0.1, le=5.0,
+        description="Amplitude verticale de psi0 (applied after unit-norm normalisation)",
+    )
 
-    # Boundary condition:
-    #   "periodic"  → wave circulates (free particle, no reflections)
-    #   "dirichlet" → ψ=0 at edges (barrier, step, wall)
-    boundary: Literal["periodic", "dirichlet"] = Field(
-        default="dirichlet",
-        description="'periodic' (free) | 'dirichlet' (barrier/step/wall)",
+    # ── Boundary condition ────────────────────────────────────────────────────
+    # Set by the frontend based on potential type.  Do NOT override server-side.
+    #
+    #   "periodic"  → free / barrier / step
+    #                 Domain edges are transparent; the wave exits one side and
+    #                 re-enters the other without reflection.
+    #
+    #   "dirichlet" → wall
+    #                 ψ = 0 enforced at both edges; full hard-wall reflection.
+    boundary: Literal["periodic", "dirichlet","absorbing"] = Field(
+        default="periodic",
+        description="'periodic' (free/barrier/step) | 'dirichlet' (wall only)",
     )
 
     t_end:       float = Field(default=3.0,   ge=0.1,  le=20.0, description="Temps final")
     dt:          float = Field(default=0.005, ge=0.001, le=0.05, description="Pas de temps")
     store_every: int   = Field(default=10,    ge=1,    le=50,   description="1 frame tous les n pas")
 
-    x_min: float = Field(default=-10.0)
-    x_max: float = Field(default=10.0)
-    N:     int   = Field(default=512, ge=128, le=1024)
+    # x_min / x_max are sent by the frontend.
+    # Free particle uses ±20; all others use ±10.
+    # The ge/le bounds are deliberately wide to accommodate both cases.
+    x_min: float = Field(default=-10.0, ge=-25.0, le=0.0)
+    x_max: float = Field(default=10.0,  ge=0.0,   le=25.0)
+    N:     int   = Field(default=512,   ge=128,   le=1024)
 
 
 class FrameData(BaseModel):

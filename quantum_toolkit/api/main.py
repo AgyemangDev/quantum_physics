@@ -12,6 +12,20 @@ Available endpoints:
     POST /evolve          -> Time evolution Crank-Nicolson
     POST /infinite-well   -> TISE eigenstates — infinite square well
     POST /superposition   -> Linear combination of eigenstates
+
+Boundary-condition contract
+---------------------------
+free    : periodic BCs, V = 0.  Wave circulates on a ring; no reflections.
+          Domain is widened to ±20 by the frontend so the packet disperses
+          off-screen without wrapping back and interfering with itself.
+barrier : periodic BCs, finite rectangular barrier at centre.
+          Only the barrier causes reflection / tunnelling — the edges are
+          transparent.
+step    : periodic BCs, abrupt step at x = 0.
+          Only the step causes partial reflection / transmission.
+wall    : dirichlet BCs, hard V = WALL_V0 barriers at domain edges.
+          Wave reflects fully from both edges and forms standing-wave
+          interference patterns.
 """
 
 import sys
@@ -36,7 +50,6 @@ from core.wavefunctions import (
 from core.potentials import (
     free_particle, potential_barrier,
     potential_step, infinite_square_well,
-    # harmonic_oscillator is intentionally NOT imported — removed from codebase.
 )
 from core.evolution import evolve, solve_tise, analytical_infinite_well_energies
 
@@ -48,7 +61,7 @@ from core.evolution import evolve, solve_tise, analytical_infinite_well_energies
 app = FastAPI(
     title="Quantum Toolkit API",
     description="REST API for quantum mechanics simulations",
-    version="0.5.0",
+    version="0.6.0",
 )
 
 app.add_middleware(
@@ -63,42 +76,80 @@ app.add_middleware(
 # Potential factory (for /evolve)
 # ---------------------------------------------------------------------------
 
-WALL_V0 = 1e6  # Approximation of an infinite wall
+# Approximate infinite wall for the "wall" potential type.
+# Only applied at domain edges; completely independent of the user-facing V0.
+WALL_V0 = 1e6
 
-def build_potential(x: np.ndarray, potential_type: str,
-                    V0: float, barrier_left: float, barrier_right: float) -> np.ndarray:
+
+def build_potential(
+    x: np.ndarray,
+    potential_type: str,
+    V0: float,
+    barrier_left: float,
+    barrier_right: float,
+) -> np.ndarray:
     """
-    Build the potential V(x) on the grid.
+    Build the potential energy array V(x) on the spatial grid.
 
-    Supported types
-    ---------------
-    free    : V(x) = 0 everywhere.  No reflections — use with periodic BCs.
-    barrier : Finite rectangular barrier centred at x=0.  Supports tunneling.
-    step    : Abrupt potential step at x=0.  Partial reflection/transmission.
-    wall    : High V0 at domain edges → hard wall, full reflection, standing waves.
-              NOTE: for wall, we raise V0 at the grid boundaries, not at the centre.
-              The Dirichlet BCs in evolution.py already enforce ψ=0 at the very edge,
-              so this adds an extra thick absorbing layer for physical clarity.
+    Parameters
+    ----------
+    x               : uniform spatial grid
+    potential_type  : "free" | "barrier" | "step" | "wall"
+    V0              : barrier/step height (ignored for "free" and "wall")
+    barrier_left    : left edge of the rectangular barrier (barrier only)
+    barrier_right   : right edge of the rectangular barrier (barrier only)
+
+    Returns
+    -------
+    V : np.ndarray, same shape as x
+
+    Notes
+    -----
+    free
+        V(x) = 0 everywhere.  The frontend uses periodic BCs so the domain
+        acts as a ring — the wave circulates with no reflections at all.
+
+    barrier
+        Finite rectangular barrier centred at x = 0.  With periodic BCs from
+        the frontend the domain edges are transparent; only the barrier itself
+        causes partial reflection and quantum tunnelling.
+
+    step
+        Abrupt potential step at x = 0.  Partial reflection for any energy;
+        evanescent penetration for E < V₀.  Periodic BCs → transparent edges.
+
+    wall
+        Very high potential at both domain edges (5 % of domain width on each
+        side) combined with dirichlet BCs from the frontend.  The wave
+        reflects fully from both boundaries and produces standing-wave
+        interference.  V₀ from the user slider is intentionally NOT used here
+        so the wall is always effectively infinite.
     """
     if potential_type == "free":
+        # Zero potential everywhere — wave propagates without any reflection.
         return free_particle(x)
 
     elif potential_type == "barrier":
-        # Finite rectangular barrier — adjustable height and width
-        return potential_barrier(x, x_left=barrier_left, x_right=barrier_right, V0=V0)
+        # Finite rectangular barrier — adjustable height and width.
+        # Periodic BCs (set by frontend) make the domain edges transparent.
+        return potential_barrier(
+            x, x_left=barrier_left, x_right=barrier_right, V0=V0
+        )
 
     elif potential_type == "step":
-        # Step at the centre of the domain (x_step = 0)
+        # Abrupt step rising at x = 0.
+        # Periodic BCs (set by frontend) make the domain edges transparent.
         return potential_step(x, x_step=0.0, V0=V0)
 
     elif potential_type == "wall":
-        # Effectively infinite walls at both domain edges.
-        # We place thick barriers near x_min and x_max so the wave
-        # reflects well before it reaches the Dirichlet boundary.
-        V = np.zeros_like(x)
-        edge = (x[-1] - x[0]) * 0.05  # 5% of domain width on each side
-        V[x <= x[0] + edge]  = WALL_V0
-        V[x >= x[-1] - edge] = WALL_V0
+        # Hard walls at both edges of the domain only.
+        # Dirichlet BCs (set by frontend) enforce ψ = 0 at the very boundary;
+        # the thick high-V layer here gives a physically visible barrier and
+        # ensures clean reflection well before the grid edge.
+        V = np.zeros_like(x, dtype=float)
+        edge_width = (x[-1] - x[0]) * 0.05   # 5 % of domain width on each side
+        V[x <= x[0]  + edge_width] = WALL_V0
+        V[x >= x[-1] - edge_width] = WALL_V0
         return V
 
     else:
@@ -113,7 +164,7 @@ def build_potential(x: np.ndarray, potential_type: str,
 def root():
     return {
         "message": "Quantum Toolkit API is running",
-        "version": "0.5.0",
+        "version": "0.6.0",
         "endpoints": ["/wave-packet", "/evolve", "/infinite-well", "/superposition"],
     }
 
@@ -152,42 +203,37 @@ def compute_evolution(req: EvolveRequest):
     """
     Propagate a Gaussian wave packet in time using Crank-Nicolson.
 
-    Physics notes
-    -------------
-    Free particle   : Uses periodic boundary conditions so the packet circulates
-                      without artificial wall reflections.  V(x)=0 everywhere.
+    Boundary-condition summary
+    --------------------------
+    The frontend determines the correct BC for each potential type and sends
+    it as `req.boundary`.  This endpoint trusts that value:
 
-    Barrier         : Finite rectangular barrier at centre.  Crank-Nicolson with
-                      Dirichlet BCs (ψ=0 at edges).  Partial tunneling / reflection.
+    free    → periodic   (transparent edges, wider domain ±20)
+    barrier → periodic   (transparent edges; only barrier reflects/tunnels)
+    step    → periodic   (transparent edges; only step reflects/transmits)
+    wall    → dirichlet  (hard walls; full reflection; standing waves)
 
-    Step            : Abrupt step at x=0.  Partial transmission for E > V₀,
-                      partial evanescent for E < V₀.
-
-    Wall            : Very high V at domain edges → wave reflects fully and forms
-                      standing-wave interference patterns.
-
-    Amplitude       : The initial wavepacket psi0 is first normalised to unit norm,
-                      then scaled by `amplitude`.  This sets the peak height and
-                      persists across all frames because Crank-Nicolson is linear
-                      (norm-conserving up to drift correction).
+    Amplitude
+    ---------
+    psi0 is first normalised to unit norm, then scaled by `req.amplitude`.
+    Crank-Nicolson is linear, so this scale factor is preserved in every frame.
     """
     try:
         x = np.linspace(req.x_min, req.x_max, req.N)
-        V = build_potential(x, req.potential, req.V0, req.barrier_left, req.barrier_right)
+        V = build_potential(
+            x, req.potential, req.V0, req.barrier_left, req.barrier_right
+        )
 
-        # Build and normalise psi0
-        psi0 = gaussian_wave_packet(x, x0=req.x0, sigma=req.sigma, k0=req.k0)
+        # Build and normalise psi0 to unit norm, then apply amplitude scale.
+        psi0  = gaussian_wave_packet(x, x0=req.x0, sigma=req.sigma, k0=req.k0)
         norm0 = np.sqrt(np.trapezoid(np.abs(psi0) ** 2, x))
         if norm0 > 1e-15:
-            psi0 = psi0 / norm0  # unit norm first
-
-        # Apply amplitude as a vertical scale (independent of sigma)
-        # Crank-Nicolson is linear, so this scale factor is preserved in time.
+            psi0 = psi0 / norm0
         psi0 = psi0 * req.amplitude
 
-        # Boundary condition:
-        #   periodic → free particle ring domain (no reflections)
-        #   dirichlet → ψ=0 at walls (barrier, step, wall, default)
+        # Boundary condition is determined by the frontend based on potential type:
+        #   "periodic"  → free / barrier / step  (transparent domain edges)
+        #   "dirichlet" → wall                   (ψ = 0 at edges)
         boundary = req.boundary if hasattr(req, "boundary") else "dirichlet"
 
         snapshots, times = evolve(
@@ -207,8 +253,7 @@ def compute_evolution(req: EvolveRequest):
             for psi in snapshots
         ]
 
-        # Cap V for serialisation so wall potential (1e6) doesn't break JSON consumers.
-        # Consumers use Vmax from the response to scale the visual overlay.
+        # Cap V for serialisation so WALL_V0 = 1e6 doesn't break JSON consumers.
         V_serialised = np.clip(V, 0, 200).tolist()
 
         return EvolveResponse(
